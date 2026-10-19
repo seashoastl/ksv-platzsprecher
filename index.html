@@ -64,7 +64,8 @@ button[disabled]{opacity:.45;cursor:not-allowed}
 .phase b{font-family:var(--display);font-size:1.35rem;text-transform:uppercase;letter-spacing:.03em;line-height:1.05}
 .phase span{font-size:.82rem;color:var(--muted);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .phase.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
-.vol{display:flex;align-items:center;gap:12px}
+.vol{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+#volHint{flex-basis:100%;margin:0}
 .vol label{font-size:.85rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.08em}
 input[type=range]{flex:1;accent-color:var(--accent)}
 .lbl{font-size:.75rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:600}
@@ -126,6 +127,7 @@ ol li{margin-bottom:6px}
       <input type="range" id="vol" min="0" max="100" step="1" value="80">
       <span class="time" id="volVal">80</span>
     </div>
+    <p class="hint" id="volHint" hidden>Die WiiM meldet feste Lautstärke – Regler und Ausblenden sind aus. In der WiiM-Home-App „Feste Lautstärke“ (Fixed Volume) beim Ausgang deaktivieren.</p>
   </section>
 
   <!-- EINSTELLUNGEN -->
@@ -176,6 +178,12 @@ ol li{margin-bottom:6px}
     <div class="panel">
       <h2>Ausblenden</h2>
       <div class="row"><div class="field"><label class="lbl" for="fadeSec">Dauer in Sekunden</label><input id="fadeSec" type="number" min="1" max="10" step="0.5"></div></div>
+    </div>
+
+    <div class="panel">
+      <h2>Diagnose</h2>
+      <p class="hint">Die letzten Befehle an Spotify. Bei Problemen Screenshot davon schicken.</p>
+      <pre id="diag" class="mono" style="white-space:pre-wrap;margin:8px 0 0;max-height:260px;overflow:auto;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px">Noch keine Befehle.</pre>
     </div>
 
     <div class="panel">
@@ -284,67 +292,126 @@ async function token() {
 }
 
 /* ---------- Spotify Web API ---------- */
+const LOG = [];
+function logLine(s) { LOG.unshift(new Date().toLocaleTimeString("de-AT") + "  " + s); LOG.length = Math.min(LOG.length, 40); const el = $("diag"); if (el && !$("setup").hidden) el.textContent = LOG.join("\n"); }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function api(method, path, body, retried) {
   const r = await fetch("https://api.spotify.com/v1" + path, { method,
     headers: Object.assign({ Authorization: "Bearer " + await token() }, body ? { "Content-Type": "application/json" } : {}),
     body: body ? JSON.stringify(body) : undefined });
   if (r.status === 401 && !retried && T && T.refresh) { T.exp = 0; return api(method, path, body, true); }
+  if (method !== "GET") logLine(method + " " + path.split("?")[0] + (body ? " " + JSON.stringify(body).slice(0, 80) : "") + " → " + r.status);
   if (r.status === 204 || r.status === 202) return null;
   const txt = await r.text(); let j = null; try { j = txt ? JSON.parse(txt) : null; } catch {}
   if (!r.ok) {
     const reason = j && j.error && (j.error.reason || j.error.message) || "";
-    if (r.status === 404 || reason === "NO_ACTIVE_DEVICE") throw new Error("Lautsprecher nicht erreichbar. WiiM in der Spotify-App kurz anwählen, dann erneut.");
-    if (r.status === 403) throw new Error("Spotify verweigert: " + (reason || "Premium/User Management prüfen"));
-    if (r.status === 429) throw new Error("Zu viele Befehle, kurz warten.");
-    throw new Error("Spotify-Fehler " + r.status + (reason ? ": " + reason : ""));
+    if (method === "GET") logLine("GET " + path.split("?")[0] + " → " + r.status + " " + reason);
+    else logLine("   Grund: " + reason);
+    const err = new Error();
+    err.status = r.status; err.reason = reason;
+    if (reason === "VOLUME_CONTROL_DISALLOW") err.message = "Die WiiM lässt keine Lautstärkeregelung über Spotify zu.";
+    else if (r.status === 404 || reason === "NO_ACTIVE_DEVICE") err.message = "Lautsprecher nicht erreichbar. WiiM in der Spotify-App kurz anwählen, dann erneut.";
+    else if (r.status === 403) err.message = "Spotify verweigert: " + (reason || "Premium/User Management prüfen");
+    else if (r.status === 429) err.message = "Zu viele Befehle, kurz warten.";
+    else err.message = "Spotify-Fehler " + r.status + (reason ? ": " + reason : "");
+    throw err;
   }
   return j;
 }
-const dev = () => S.deviceId ? "?device_id=" + encodeURIComponent(S.deviceId) : "";
-const devAmp = () => S.deviceId ? "&device_id=" + encodeURIComponent(S.deviceId) : "";
+
+/* ---------- Lautsprecher sicherstellen ---------- */
+// Befehle gehen an das aktive Gerät. Nur wenn die WiiM nicht aktiv ist, wird einmal übertragen.
+let devInfo = null;
+function noteDevice(d) {
+  devInfo = d || null;
+  const can = !d || d.supports_volume !== false;
+  $("vol").disabled = !can;
+  $("volHint").hidden = can;
+}
+async function ensureDevice() {
+  const st = await api("GET", "/me/player").catch(() => null);
+  if (st && st.device && st.device.id && (!S.deviceId || st.device.id === S.deviceId || st.device.name === S.deviceName)) {
+    if (st.device.id !== S.deviceId) { S.deviceId = st.device.id; S.deviceName = st.device.name; persist(); }
+    noteDevice(st.device);
+    return st;
+  }
+  if (!S.deviceId && !S.deviceName) throw new Error("Kein Lautsprecher festgelegt (Einstellungen › Geräte suchen).");
+  const j = await api("GET", "/me/player/devices");
+  const list = (j && j.devices) || [];
+  const d = list.find(x => x.id === S.deviceId) || list.find(x => x.name === S.deviceName);
+  if (!d) throw new Error("„" + (S.deviceName || "WiiM") + "“ nicht gefunden. WiiM einschalten und einmal in der Spotify-App wählen.");
+  if (d.id !== S.deviceId) { S.deviceId = d.id; persist(); }
+  noteDevice(d);
+  logLine("Übertrage auf " + d.name);
+  await api("PUT", "/me/player", { device_ids: [d.id], play: false });
+  await sleep(900);
+  return null;
+}
 
 /* ---------- Wiedergabe ---------- */
 let fadeRun = 0, autoTimer = null, activePhase = "";
 function cancelFade() { fadeRun++; clearTimeout(autoTimer); autoTimer = null; }
-async function setVolume(v) { await api("PUT", "/me/player/volume?volume_percent=" + Math.round(v) + devAmp()); }
+const volOk = () => !devInfo || devInfo.supports_volume !== false;
+async function setVolume(v) {
+  if (!volOk()) return;
+  try { await api("PUT", "/me/player/volume?volume_percent=" + Math.round(v)); }
+  catch (e) { if (e.reason === "VOLUME_CONTROL_DISALLOW") { noteDevice(Object.assign({}, devInfo, { supports_volume: false })); } throw e; }
+}
 
 async function playSlot(slot, opts = {}) {
   if (!slot || !slot.uri) { toast("Für „" + (slot ? slot.label : "?") + "“ ist noch kein Song hinterlegt.", true); return; }
   cancelFade();
+  const my = fadeRun;
   try {
-    const wasFading = opts.restoreVol;
-    if (wasFading) await setVolume(S.vol).catch(() => {});
-    const k = kind(slot.uri);
-    let body;
-    if (k === "track") body = { uris: [slot.uri], position_ms: slot.startMs || 0 };
-    else {
-      await api("PUT", "/me/player/shuffle?state=" + (!!slot.shuffle) + devAmp()).catch(() => {});
-      body = { context_uri: slot.uri };
+    await ensureDevice();
+    if (opts.restoreVol) await setVolume(S.vol).catch(() => {});
+    const k = kind(slot.uri), isTrack = k === "track";
+    const body = isTrack ? { uris: [slot.uri], position_ms: slot.startMs || 0 } : { context_uri: slot.uri };
+    try { await api("PUT", "/me/player/play", body); }
+    catch (e) {
+      if (e.status !== 404 || !S.deviceId) throw e;
+      await api("PUT", "/me/player/play?device_id=" + encodeURIComponent(S.deviceId), body);
     }
-    await api("PUT", "/me/player/play" + dev(), body);
     activePhase = slot.id; renderLive();
-    if (slot.autoSec > 0) { const my = fadeRun; autoTimer = setTimeout(() => { if (my === fadeRun) fadeOut(); }, slot.autoSec * 1000); }
-    setTimeout(poll, 700);
+    // Kontrolle: läuft es wirklich? Manche Lautsprecher bleiben nach dem Laden stehen.
+    await sleep(1500);
+    if (my !== fadeRun) return;
+    const st = await api("GET", "/me/player").catch(() => null);
+    if (st && !st.is_playing) {
+      logLine("Steht nach Start – setze fort");
+      await api("PUT", "/me/player/play").catch(() => {});
+      if (isTrack && slot.startMs > 3000 && st.item && st.item.uri === slot.uri && st.progress_ms < slot.startMs - 3000) {
+        await api("PUT", "/me/player/seek?position_ms=" + slot.startMs).catch(() => {});
+      }
+    }
+    if (!isTrack) api("PUT", "/me/player/shuffle?state=" + (!!slot.shuffle)).catch(() => {});
+    if (slot.autoSec > 0) { autoTimer = setTimeout(() => { if (my === fadeRun) fadeOut(); }, Math.max(0, slot.autoSec * 1000 - 1500)); }
+    poll();
   } catch (e) { toast(e.message, true); }
 }
 async function fadeOut() {
   cancelFade(); const my = fadeRun;
+  if (!volOk()) { await stopNow(); toast("Ausblenden geht nur mit Lautstärkeregelung – gestoppt."); return; }
   const steps = 8, dur = Math.max(500, (S.fadeSec || 3) * 1000), start = S.vol;
   try {
     for (let i = 1; i <= steps; i++) {
       if (my !== fadeRun) return;
       await setVolume(start * (1 - i / steps));
-      await new Promise(r => setTimeout(r, dur / steps));
+      await sleep(dur / steps);
     }
     if (my !== fadeRun) return;
-    await api("PUT", "/me/player/pause" + dev()).catch(() => {});
+    await api("PUT", "/me/player/pause").catch(() => {});
+    await sleep(300);
     await setVolume(S.vol).catch(() => {});
     activePhase = ""; renderLive(); setTimeout(poll, 500);
-  } catch (e) { toast(e.message, true); }
+  } catch (e) {
+    if (e.reason === "VOLUME_CONTROL_DISALLOW") { await stopNow(); toast(e.message + " Gestoppt.", true); return; }
+    toast(e.message, true);
+  }
 }
 async function stopNow() {
   cancelFade();
-  try { await api("PUT", "/me/player/pause" + dev()); await setVolume(S.vol).catch(() => {}); activePhase = ""; renderLive(); setTimeout(poll, 500); }
+  try { await api("PUT", "/me/player/pause"); await setVolume(S.vol).catch(() => {}); activePhase = ""; renderLive(); setTimeout(poll, 500); }
   catch (e) { toast(e.message, true); }
 }
 function nextGoalIndex() {
@@ -371,6 +438,7 @@ async function poll() {
   try {
     const st = await api("GET", "/me/player");
     lastState = st;
+    if (st && st.device) noteDevice(st.device);
     $("status").className = "chip ok";
     $("status").textContent = st && st.device ? st.device.name : (S.deviceName || "verbunden");
     const it = st && st.item;
@@ -378,11 +446,15 @@ async function poll() {
     $("npArtist").textContent = it ? (it.artists || []).map(a => a.name).join(", ") + (st.is_playing ? "" : " · pausiert") : "–";
     $("npTime").textContent = it ? fmt(st.progress_ms) + " / " + fmt(it.duration_ms) : "0:00";
     $("npBar").style.width = it ? (100 * st.progress_ms / it.duration_ms).toFixed(1) + "%" : "0";
+    if (st && st.device && typeof st.device.volume_percent === "number" && st.device.supports_volume !== false && document.activeElement !== $("vol") && fadeRun === lastFadeSeen) {
+      $("vol").value = st.device.volume_percent; $("volVal").textContent = st.device.volume_percent;
+    }
   } catch (e) {
     $("status").className = "chip bad"; $("status").textContent = "Verbindung prüfen";
   }
 }
-setInterval(poll, 3000);
+let lastFadeSeen = 0;
+setInterval(() => { lastFadeSeen = fadeRun; poll(); }, 3000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) { poll(); wake(); } });
 
 /* ---------- Bildschirm wach halten ---------- */
@@ -491,6 +563,7 @@ function slotEditor(slot, isGoal) {
 }
 function renderSetup() {
   $("clientId").value = S.clientId;
+  if (LOG.length) $("diag").textContent = LOG.join("\n");
   $("redirUri").textContent = REDIRECT;
   $("goalMode").value = S.goalMode;
   $("fadeSec").value = S.fadeSec;
