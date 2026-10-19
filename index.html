@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1630">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>KSV Platzsprecher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: eine Spalte wie ein Anzeigetafel-Pult — Jetzt läuft oben, TOR-Taste groß, Phasen im 2er-Raster, Einstellungen als zweiter Reiter */
+:root{
+  --bg:#0b1630; --panel:#12214a; --panel2:#1a2c5c; --line:#26396e;
+  --fg:#f2f5fc; --muted:#a6b4d6;
+  --accent:#4f8dff; --on-accent:#ffffff; --goal:#ffffff; --goal-ink:#0d2a7a; --danger:#ff6b5a;
+  --display:"Saira Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){
+  :root{ --bg:#eef2fa; --panel:#ffffff; --panel2:#e1e8f6; --line:#c5d0e8;
+    --fg:#0d1a3a; --muted:#4a5b82; --accent:#1446c8; --on-accent:#ffffff; --goal:#1446c8; --goal-ink:#ffffff; --danger:#c8321f; color-scheme:light }
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg)}
+body{font:16px/1.4 var(--body);
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:calc(76px + env(safe-area-inset-bottom,0px));
+  padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px));
+  -webkit-tap-highlight-color:transparent}
+.wrap{max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:14px;padding-block:12px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:0;border-radius:12px;background:var(--panel2);padding:10px 14px;font-weight:600}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button:active{transform:scale(.98)}
+button[disabled]{opacity:.45;cursor:not-allowed}
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.brand{font-family:var(--display);font-weight:800;font-size:1.5rem;letter-spacing:.02em;text-transform:uppercase;line-height:1}
+.brand small{display:block;font-size:.8rem;color:var(--muted);letter-spacing:.12em;font-weight:600}
+.chip{font-size:.78rem;font-weight:600;padding:5px 10px;border-radius:99px;background:var(--panel2);color:var(--muted);white-space:nowrap;max-width:55vw;overflow:hidden;text-overflow:ellipsis}
+.chip.ok{color:var(--accent)} .chip.bad{color:var(--danger)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px}
+.now{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+.now .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.now .a{color:var(--muted);font-size:.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.now>div{min-width:0}
+.bar{grid-column:1/-1;height:6px;background:var(--panel2);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .9s linear}
+.time{font-family:var(--display);font-variant-numeric:tabular-nums;color:var(--muted);font-size:1.05rem}
+.ctl{display:grid;grid-template-columns:2fr 1fr;gap:10px}
+.fade{background:var(--fg);color:var(--bg);font-family:var(--display);font-size:1.35rem;text-transform:uppercase;letter-spacing:.06em;padding:16px}
+.stop{font-family:var(--display);font-size:1.2rem;text-transform:uppercase;letter-spacing:.06em}
+.goal{width:100%;background:var(--goal);color:var(--goal-ink);border:4px solid var(--accent);border-radius:20px;padding:22px 12px 16px;display:flex;flex-direction:column;align-items:center;gap:2px;box-shadow:0 6px 0 rgba(0,0,0,.25)}
+.goal b{font-family:var(--display);font-weight:800;font-size:clamp(4rem,22vw,7rem);line-height:.9;letter-spacing:.04em}
+.goal span{font-weight:600;font-size:.95rem;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.goal:active{box-shadow:0 2px 0 rgba(0,0,0,.25);transform:translateY(4px)}
+.goals{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.goals button{flex:0 0 auto;font-size:.9rem;background:var(--panel);border:1px solid var(--line)}
+.goals button.next{border-color:var(--goal)}
+.phases{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.phase{text-align:left;background:var(--panel);border:1px solid var(--line);padding:14px;min-height:96px;display:flex;flex-direction:column;justify-content:space-between;gap:6px;min-width:0}
+.phase b{font-family:var(--display);font-size:1.35rem;text-transform:uppercase;letter-spacing:.03em;line-height:1.05}
+.phase span{font-size:.82rem;color:var(--muted);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.phase.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.vol{display:flex;align-items:center;gap:12px}
+.vol label{font-size:.85rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.08em}
+input[type=range]{flex:1;accent-color:var(--accent)}
+.lbl{font-size:.75rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:600}
+h2{font-family:var(--display);font-size:1.3rem;text-transform:uppercase;letter-spacing:.04em;margin:0 0 10px}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field input,.field select,textarea{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px;width:100%;min-width:0}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+.row>.field{flex:1 1 120px}
+.slot{border-top:1px solid var(--line);padding-top:12px;margin-top:12px;display:flex;flex-direction:column;gap:8px}
+.slot:first-of-type{border-top:0;margin-top:0;padding-top:0}
+.small{font-size:.85rem;padding:8px 11px}
+.pri{background:var(--accent);color:var(--on-accent)}
+.del{color:var(--danger);background:transparent;border:1px solid var(--line)}
+.hint{font-size:.85rem;color:var(--muted);margin:0}
+code,.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.85rem;word-break:break-all}
+.dev{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.dev button{text-align:left;background:var(--bg);border:1px solid var(--line);font-weight:500}
+.dev button.sel{border-color:var(--accent);color:var(--accent);font-weight:600}
+details summary{cursor:pointer;font-weight:600}
+ol{padding-left:20px;margin:8px 0 0}
+ol li{margin-bottom:6px}
+.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr;gap:8px;
+  padding:10px max(14px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(14px,env(safe-area-inset-left,0px))}
+.tabs button{font-family:var(--display);text-transform:uppercase;letter-spacing:.06em;font-size:1.05rem;background:transparent}
+.tabs button.on{background:var(--panel2);color:var(--accent)}
+.toast{position:fixed;left:50%;bottom:calc(86px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:12px;font-weight:600;max-width:calc(100% - 32px);z-index:20;box-shadow:0 6px 20px rgba(0,0,0,.3)}
+.toast.err{background:var(--danger);color:#fff}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}button:active{transform:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">KSV Röschitz<small>Platzsprecher · Musik</small></div>
+    <span class="chip" id="status">nicht verbunden</span>
+  </header>
+
+  <!-- LIVE -->
+  <section id="live" class="wrap" style="padding:0">
+    <div class="panel now">
+      <div><div class="t" id="npTitle">Nichts läuft</div><div class="a" id="npArtist">–</div></div>
+      <div class="time" id="npTime">0:00</div>
+      <div class="bar"><i id="npBar"></i></div>
+    </div>
+
+    <div class="ctl">
+      <button class="fade" id="btnFade">Ausblenden</button>
+      <button class="stop" id="btnStop">Stopp</button>
+    </div>
+
+    <button class="goal" id="btnGoal"><b>TOR!</b><span id="goalNext">Torlied in Einstellungen festlegen</span></button>
+    <div class="goals" id="goalChips" aria-label="Torlieder einzeln"></div>
+
+    <div class="phases" id="phaseGrid"></div>
+
+    <div class="panel vol">
+      <label for="vol">Lautst.</label>
+      <input type="range" id="vol" min="0" max="100" step="1" value="80">
+      <span class="time" id="volVal">80</span>
+    </div>
+  </section>
+
+  <!-- EINSTELLUNGEN -->
+  <section id="setup" class="wrap" style="padding:0" hidden>
+    <div class="panel">
+      <h2>Spotify-Verbindung</h2>
+      <div class="field"><label class="lbl" for="clientId">Client ID</label><input id="clientId" autocomplete="off" spellcheck="false" placeholder="aus dem Spotify Developer Dashboard"></div>
+      <p class="hint" style="margin-top:8px">Redirect URI für das Dashboard:</p>
+      <div class="row" style="align-items:center"><code id="redirUri" style="flex:1"></code><button class="small" id="btnCopy">Kopieren</button></div>
+      <div class="row" style="margin-top:10px">
+        <button class="pri" id="btnLogin">Mit Spotify anmelden</button>
+        <button class="small del" id="btnLogout">Abmelden</button>
+      </div>
+      <details style="margin-top:12px"><summary>So richtest du es einmalig ein</summary>
+        <ol class="hint">
+          <li>Auf <span class="mono">developer.spotify.com/dashboard</span> mit deinem Spotify-Premium-Konto einloggen und „Create app“ wählen.</li>
+          <li>Bei „Redirect URIs“ die Adresse oben einfügen, bei den APIs „Web API“ anhaken, speichern.</li>
+          <li>Die Client ID kopieren und hier oben einfügen.</li>
+          <li>Unter „User Management“ deine Spotify-E-Mail eintragen, falls die Anmeldung mit Fehler 403 abbricht.</li>
+          <li>„Mit Spotify anmelden“ tippen. Danach die WiiM einmal in der Spotify-App als Lautsprecher wählen, dann unten als Gerät festlegen.</li>
+        </ol>
+      </details>
+    </div>
+
+    <div class="panel">
+      <h2>Lautsprecher</h2>
+      <p class="hint">Die WiiM erscheint hier, sobald sie eingeschaltet und im selben WLAN ist.</p>
+      <div class="row" style="margin-top:8px"><button class="small" id="btnDevices">Geräte suchen</button></div>
+      <div class="dev" id="devList"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Torlieder</h2>
+      <div class="row">
+        <div class="field"><label class="lbl" for="goalMode">Reihenfolge bei TOR!</label>
+          <select id="goalMode"><option value="rotation">Der Reihe nach</option><option value="zufall">Zufällig</option><option value="erstes">Immer das erste</option></select></div>
+      </div>
+      <div id="goalEdit" style="margin-top:12px"></div>
+      <div class="row" style="margin-top:12px"><button class="small" id="btnAddGoal">+ Torlied</button></div>
+    </div>
+
+    <div class="panel">
+      <h2>Spielphasen</h2>
+      <p class="hint">Einzelner Song (mit Startstelle) oder Playlist/Album (läuft durch, optional zufällig).</p>
+      <div id="phaseEdit" style="margin-top:12px"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Ausblenden</h2>
+      <div class="row"><div class="field"><label class="lbl" for="fadeSec">Dauer in Sekunden</label><input id="fadeSec" type="number" min="1" max="10" step="0.5"></div></div>
+    </div>
+
+    <div class="panel">
+      <h2>Sicherung</h2>
+      <p class="hint">Einstellungen liegen nur auf diesem Handy. Text kopieren und z. B. per Mail sichern, oder gesicherten Text einfügen und laden.</p>
+      <textarea id="backup" rows="4" style="margin-top:8px" spellcheck="false"></textarea>
+      <div class="row" style="margin-top:8px"><button class="small" id="btnExport">Sicherung erzeugen</button><button class="small" id="btnImport">Sicherung laden</button></div>
+    </div>
+  </section>
+</div>
+
+<nav class="tabs">
+  <button id="tabLive" class="on">Live</button>
+  <button id="tabSetup">Einstellungen</button>
+</nav>
+
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+const KEY = "ksv-platzsprecher-v1", TKEY = "ksv-platzsprecher-token", VKEY = "ksv-platzsprecher-pkce";
+const SCOPES = "user-read-playback-state user-modify-playback-state user-read-currently-playing";
+const REDIRECT = location.origin + location.pathname;
+const DEFAULT_CLIENT_ID = "f7e19a3479e54def879e25947bc2b016";
+const uid = () => Math.random().toString(36).slice(2, 9);
+
+/* ---------- Speicher ---------- */
+const load = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
+const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const defaults = () => ({
+  clientId: DEFAULT_CLIENT_ID, deviceId: "", deviceName: "", fadeSec: 3, vol: 80, goalMode: "rotation", goalIdx: 0,
+  goals: [{ id: uid(), label: "Torlied 1", uri: "", startMs: 0, autoSec: 0 }],
+  phases: [
+    { id: "pre", label: "Vor dem Match", uri: "", startMs: 0, shuffle: true },
+    { id: "walk", label: "Einlaufen", uri: "", startMs: 0, shuffle: false },
+    { id: "half", label: "Halbzeit", uri: "", startMs: 0, shuffle: true },
+    { id: "post", label: "Nach dem Match", uri: "", startMs: 0, shuffle: true }
+  ]
+});
+let S = Object.assign(defaults(), load(KEY, {}));
+if (!S.clientId) S.clientId = DEFAULT_CLIENT_ID;
+let T = load(TKEY, null); // {access, refresh, exp}
+const persist = () => save(KEY, S);
+
+/* ---------- Helfer ---------- */
+const fmt = ms => { ms = Math.max(0, ms | 0); const s = Math.floor(ms / 1000); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
+const parseTime = str => {
+  str = String(str || "").trim().replace(",", ".");
+  if (!str) return 0;
+  const p = str.split(":");
+  const sec = p.length > 1 ? (+p[0] || 0) * 60 + (parseFloat(p[1]) || 0) : parseFloat(p[0]) || 0;
+  return Math.round(sec * 1000);
+};
+const toUri = s => {
+  s = String(s || "").trim();
+  if (!s) return "";
+  if (/^spotify:(track|playlist|album|artist):[A-Za-z0-9]+$/.test(s)) return s;
+  const m = s.match(/open\.spotify\.com\/(?:intl-[a-z]+\/)?(track|playlist|album|artist)\/([A-Za-z0-9]+)/);
+  return m ? "spotify:" + m[1] + ":" + m[2] : "";
+};
+const kind = uri => (uri.split(":")[1] || "");
+let toastTimer;
+function toast(msg, err) {
+  let el = document.querySelector(".toast");
+  if (!el) { el = document.createElement("div"); el.className = "toast"; el.setAttribute("role", "status"); document.body.appendChild(el); }
+  el.textContent = msg; el.classList.toggle("err", !!err); el.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.hidden = true, err ? 4500 : 2200);
+}
+
+/* ---------- Spotify Login (PKCE) ---------- */
+const b64url = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+async function login() {
+  if (!S.clientId) { toast("Zuerst die Client ID eintragen.", true); return; }
+  if (!window.crypto || !crypto.subtle) { toast("Die Seite muss über https:// geöffnet werden.", true); return; }
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
+  const challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+  try { localStorage.setItem(VKEY, verifier); } catch {}
+  const q = new URLSearchParams({ client_id: S.clientId, response_type: "code", redirect_uri: REDIRECT,
+    code_challenge_method: "S256", code_challenge: challenge, scope: SCOPES });
+  location.href = "https://accounts.spotify.com/authorize?" + q;
+}
+async function tokenReq(params) {
+  const r = await fetch("https://accounts.spotify.com/api/token", { method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(params) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error_description || j.error || ("Anmeldung fehlgeschlagen (" + r.status + ")"));
+  T = { access: j.access_token, refresh: j.refresh_token || (T && T.refresh), exp: Date.now() + (j.expires_in - 60) * 1000 };
+  save(TKEY, T);
+}
+async function handleRedirect() {
+  const q = new URLSearchParams(location.search);
+  if (!q.has("code") && !q.has("error")) return;
+  history.replaceState(null, "", REDIRECT);
+  if (q.get("error")) { toast("Spotify-Anmeldung abgebrochen: " + q.get("error"), true); return; }
+  let verifier = ""; try { verifier = localStorage.getItem(VKEY) || ""; } catch {}
+  try {
+    await tokenReq({ grant_type: "authorization_code", code: q.get("code"), redirect_uri: REDIRECT, client_id: S.clientId, code_verifier: verifier });
+    toast("Mit Spotify verbunden");
+  } catch (e) { toast(e.message, true); }
+}
+async function token() {
+  if (!T || !T.access) throw new Error("Nicht mit Spotify angemeldet (Einstellungen).");
+  if (Date.now() > T.exp) await tokenReq({ grant_type: "refresh_token", refresh_token: T.refresh, client_id: S.clientId });
+  return T.access;
+}
+
+/* ---------- Spotify Web API ---------- */
+async function api(method, path, body, retried) {
+  const r = await fetch("https://api.spotify.com/v1" + path, { method,
+    headers: Object.assign({ Authorization: "Bearer " + await token() }, body ? { "Content-Type": "application/json" } : {}),
+    body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401 && !retried && T && T.refresh) { T.exp = 0; return api(method, path, body, true); }
+  if (r.status === 204 || r.status === 202) return null;
+  const txt = await r.text(); let j = null; try { j = txt ? JSON.parse(txt) : null; } catch {}
+  if (!r.ok) {
+    const reason = j && j.error && (j.error.reason || j.error.message) || "";
+    if (r.status === 404 || reason === "NO_ACTIVE_DEVICE") throw new Error("Lautsprecher nicht erreichbar. WiiM in der Spotify-App kurz anwählen, dann erneut.");
+    if (r.status === 403) throw new Error("Spotify verweigert: " + (reason || "Premium/User Management prüfen"));
+    if (r.status === 429) throw new Error("Zu viele Befehle, kurz warten.");
+    throw new Error("Spotify-Fehler " + r.status + (reason ? ": " + reason : ""));
+  }
+  return j;
+}
+const dev = () => S.deviceId ? "?device_id=" + encodeURIComponent(S.deviceId) : "";
+const devAmp = () => S.deviceId ? "&device_id=" + encodeURIComponent(S.deviceId) : "";
+
+/* ---------- Wiedergabe ---------- */
+let fadeRun = 0, autoTimer = null, activePhase = "";
+function cancelFade() { fadeRun++; clearTimeout(autoTimer); autoTimer = null; }
+async function setVolume(v) { await api("PUT", "/me/player/volume?volume_percent=" + Math.round(v) + devAmp()); }
+
+async function playSlot(slot, opts = {}) {
+  if (!slot || !slot.uri) { toast("Für „" + (slot ? slot.label : "?") + "“ ist noch kein Song hinterlegt.", true); return; }
+  cancelFade();
+  try {
+    const wasFading = opts.restoreVol;
+    if (wasFading) await setVolume(S.vol).catch(() => {});
+    const k = kind(slot.uri);
+    let body;
+    if (k === "track") body = { uris: [slot.uri], position_ms: slot.startMs || 0 };
+    else {
+      await api("PUT", "/me/player/shuffle?state=" + (!!slot.shuffle) + devAmp()).catch(() => {});
+      body = { context_uri: slot.uri };
+    }
+    await api("PUT", "/me/player/play" + dev(), body);
+    activePhase = slot.id; renderLive();
+    if (slot.autoSec > 0) { const my = fadeRun; autoTimer = setTimeout(() => { if (my === fadeRun) fadeOut(); }, slot.autoSec * 1000); }
+    setTimeout(poll, 700);
+  } catch (e) { toast(e.message, true); }
+}
+async function fadeOut() {
+  cancelFade(); const my = fadeRun;
+  const steps = 8, dur = Math.max(500, (S.fadeSec || 3) * 1000), start = S.vol;
+  try {
+    for (let i = 1; i <= steps; i++) {
+      if (my !== fadeRun) return;
+      await setVolume(start * (1 - i / steps));
+      await new Promise(r => setTimeout(r, dur / steps));
+    }
+    if (my !== fadeRun) return;
+    await api("PUT", "/me/player/pause" + dev()).catch(() => {});
+    await setVolume(S.vol).catch(() => {});
+    activePhase = ""; renderLive(); setTimeout(poll, 500);
+  } catch (e) { toast(e.message, true); }
+}
+async function stopNow() {
+  cancelFade();
+  try { await api("PUT", "/me/player/pause" + dev()); await setVolume(S.vol).catch(() => {}); activePhase = ""; renderLive(); setTimeout(poll, 500); }
+  catch (e) { toast(e.message, true); }
+}
+function nextGoalIndex() {
+  const g = S.goals.filter(x => x.uri);
+  if (!g.length) return -1;
+  if (S.goalMode === "erstes") return S.goals.indexOf(g[0]);
+  if (S.goalMode === "zufall") return S.goals.indexOf(g[Math.floor(Math.random() * g.length)]);
+  for (let n = 0; n < S.goals.length; n++) { const i = (S.goalIdx + n) % S.goals.length; if (S.goals[i].uri) return i; }
+  return -1;
+}
+let pendingRandom = -1;
+function goal() {
+  const i = S.goalMode === "zufall" && pendingRandom >= 0 ? pendingRandom : nextGoalIndex();
+  if (i < 0) { toast("Noch kein Torlied hinterlegt.", true); return; }
+  playSlot(S.goals[i], { restoreVol: true });
+  if (S.goalMode === "rotation") S.goalIdx = (i + 1) % S.goals.length;
+  pendingRandom = -1; persist(); renderLive();
+}
+
+/* ---------- Jetzt läuft ---------- */
+let lastState = null;
+async function poll() {
+  if (!T || !T.access || document.hidden) return;
+  try {
+    const st = await api("GET", "/me/player");
+    lastState = st;
+    $("status").className = "chip ok";
+    $("status").textContent = st && st.device ? st.device.name : (S.deviceName || "verbunden");
+    const it = st && st.item;
+    $("npTitle").textContent = it ? it.name : "Nichts läuft";
+    $("npArtist").textContent = it ? (it.artists || []).map(a => a.name).join(", ") + (st.is_playing ? "" : " · pausiert") : "–";
+    $("npTime").textContent = it ? fmt(st.progress_ms) + " / " + fmt(it.duration_ms) : "0:00";
+    $("npBar").style.width = it ? (100 * st.progress_ms / it.duration_ms).toFixed(1) + "%" : "0";
+  } catch (e) {
+    $("status").className = "chip bad"; $("status").textContent = "Verbindung prüfen";
+  }
+}
+setInterval(poll, 3000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { poll(); wake(); } });
+
+/* ---------- Bildschirm wach halten ---------- */
+let lock = null;
+async function wake() { try { if ("wakeLock" in navigator && !lock) { lock = await navigator.wakeLock.request("screen"); lock.addEventListener("release", () => lock = null); } } catch {} }
+
+/* ---------- Live-Ansicht ---------- */
+function slotInfo(s) {
+  if (!s.uri) return "nicht belegt";
+  const k = kind(s.uri);
+  if (k === "track") return (s.name || "Song") + " · ab " + fmt(s.startMs);
+  return (s.name || (k === "album" ? "Album" : "Playlist")) + (s.shuffle ? " · zufällig" : " · der Reihe nach");
+}
+function renderLive() {
+  const gi = S.goalMode === "zufall" ? -1 : nextGoalIndex();
+  const g = gi >= 0 ? S.goals[gi] : null;
+  $("goalNext").textContent = S.goalMode === "zufall"
+    ? (S.goals.some(x => x.uri) ? "Zufälliges Torlied" : "Torlied in Einstellungen festlegen")
+    : (g ? g.label + " · ab " + fmt(g.startMs) : "Torlied in Einstellungen festlegen");
+  const chips = $("goalChips"); chips.textContent = "";
+  S.goals.filter(x => x.uri).forEach(x => {
+    const b = document.createElement("button");
+    b.textContent = x.label; if (x === g) b.className = "next";
+    b.onclick = () => playSlot(x, { restoreVol: true });
+    chips.appendChild(b);
+  });
+  chips.hidden = S.goals.filter(x => x.uri).length < 2;
+  const grid = $("phaseGrid"); grid.textContent = "";
+  S.phases.forEach(p => {
+    const b = document.createElement("button");
+    b.className = "phase" + (activePhase === p.id ? " on" : "");
+    const t = document.createElement("b"); t.textContent = p.label;
+    const i = document.createElement("span"); i.textContent = slotInfo(p);
+    b.append(t, i); b.onclick = () => playSlot(p, { restoreVol: true });
+    grid.appendChild(b);
+  });
+  $("vol").value = S.vol; $("volVal").textContent = S.vol;
+}
+
+/* ---------- Einstellungen ---------- */
+function field(label, value, oninput, attrs = {}) {
+  const w = document.createElement("div"); w.className = "field";
+  const id = "f" + uid();
+  const l = document.createElement("label"); l.className = "lbl"; l.htmlFor = id; l.textContent = label;
+  const i = document.createElement("input"); i.id = id; i.value = value;
+  Object.assign(i, attrs);
+  i.addEventListener("change", () => oninput(i.value, i));
+  w.append(l, i); return w;
+}
+function btn(text, cls, fn) { const b = document.createElement("button"); b.className = "small " + (cls || ""); b.textContent = text; b.onclick = fn; return b; }
+
+async function captureTrack(slot) {
+  try {
+    const st = await api("GET", "/me/player");
+    if (!st || !st.item) { toast("Gerade läuft nichts in Spotify.", true); return; }
+    slot.uri = st.item.uri; slot.startMs = st.progress_ms || 0;
+    slot.name = st.item.name;
+    if (!slot.label || /^Torlied \d+$/.test(slot.label)) slot.label = st.item.name;
+    persist(); renderSetup(); renderLive();
+    toast("Übernommen: " + st.item.name + " ab " + fmt(slot.startMs));
+  } catch (e) { toast(e.message, true); }
+}
+async function captureContext(slot) {
+  try {
+    const st = await api("GET", "/me/player");
+    if (!st || !st.context || !st.context.uri) { toast("Keine Playlist aktiv. In Spotify eine Playlist starten.", true); return; }
+    slot.uri = st.context.uri; slot.startMs = 0; slot.name = "";
+    try { const id = slot.uri.split(":")[2], k = kind(slot.uri);
+      if (k === "playlist" || k === "album") { const j = await api("GET", "/" + k + "s/" + id + (k === "playlist" ? "?fields=name" : "")); slot.name = j && j.name || ""; } } catch {}
+    persist(); renderSetup(); renderLive();
+    toast("Playlist übernommen" + (slot.name ? ": " + slot.name : ""));
+  } catch (e) { toast(e.message, true); }
+}
+function slotEditor(slot, isGoal) {
+  const box = document.createElement("div"); box.className = "slot";
+  const r1 = document.createElement("div"); r1.className = "row";
+  r1.append(field("Name", slot.label, v => { slot.label = v.trim() || slot.label; persist(); renderLive(); }));
+  const r2 = document.createElement("div"); r2.className = "row";
+  r2.append(field("Spotify-Link", slot.uri, (v, el) => {
+    const u = toUri(v);
+    if (v && !u) { toast("Link nicht erkannt. In Spotify „Teilen › Link kopieren“ verwenden.", true); el.value = slot.uri; return; }
+    if (u !== slot.uri) slot.name = "";
+    slot.uri = u; el.value = u; persist(); renderLive(); renderSetup();
+  }, { placeholder: "open.spotify.com/track/…", spellcheck: false, autocomplete: "off" }));
+  const isTrack = !slot.uri || kind(slot.uri) === "track";
+  if (isTrack) r2.append(field("Start (m:ss)", fmt(slot.startMs), (v, el) => { slot.startMs = parseTime(v); el.value = fmt(slot.startMs); persist(); renderLive(); }, { inputMode: "decimal", style: "max-width:110px" }));
+  box.append(r1, r2);
+  if (isGoal) {
+    const r3 = document.createElement("div"); r3.className = "row";
+    r3.append(field("Automatisch ausblenden nach (Sek., 0 = nie)", slot.autoSec || 0, (v, el) => { slot.autoSec = Math.max(0, parseFloat(v) || 0); el.value = slot.autoSec; persist(); }, { type: "number", min: 0, step: 1, inputMode: "numeric" }));
+    box.append(r3);
+  } else if (slot.uri && !isTrack) {
+    const w = document.createElement("label"); w.className = "row"; w.style.alignItems = "center"; w.style.gap = "8px";
+    const c = document.createElement("input"); c.type = "checkbox"; c.checked = !!slot.shuffle; c.style.width = "22px"; c.style.height = "22px";
+    c.onchange = () => { slot.shuffle = c.checked; persist(); renderLive(); };
+    w.append(c, document.createTextNode("Zufällige Reihenfolge")); box.append(w);
+  }
+  const r4 = document.createElement("div"); r4.className = "row";
+  r4.append(btn("Laufenden Song + Stelle übernehmen", "", () => captureTrack(slot)));
+  if (!isGoal) r4.append(btn("Laufende Playlist übernehmen", "", () => captureContext(slot)));
+  r4.append(btn("Testen", "pri", () => playSlot(slot, { restoreVol: true })));
+  if (isGoal && S.goals.length > 1) r4.append(btn("Löschen", "del", () => { S.goals = S.goals.filter(x => x !== slot); S.goalIdx = 0; persist(); renderSetup(); renderLive(); }));
+  box.append(r4);
+  if (slot.uri) { const p = document.createElement("p"); p.className = "hint"; p.textContent = slotInfo(slot); box.append(p); }
+  return box;
+}
+function renderSetup() {
+  $("clientId").value = S.clientId;
+  $("redirUri").textContent = REDIRECT;
+  $("goalMode").value = S.goalMode;
+  $("fadeSec").value = S.fadeSec;
+  $("btnLogout").hidden = !T;
+  $("btnLogin").textContent = T ? "Neu anmelden" : "Mit Spotify anmelden";
+  const ge = $("goalEdit"); ge.textContent = ""; S.goals.forEach(g => ge.appendChild(slotEditor(g, true)));
+  const pe = $("phaseEdit"); pe.textContent = ""; S.phases.forEach(p => pe.appendChild(slotEditor(p, false)));
+}
+async function loadDevices() {
+  const list = $("devList"); list.textContent = "";
+  try {
+    const j = await api("GET", "/me/player/devices");
+    const d = (j && j.devices) || [];
+    if (!d.length) { const p = document.createElement("p"); p.className = "hint"; p.textContent = "Kein Gerät gefunden. WiiM einschalten und einmal in der Spotify-App auswählen."; list.appendChild(p); return; }
+    d.forEach(x => {
+      const b = document.createElement("button");
+      b.className = x.id === S.deviceId ? "sel" : "";
+      b.textContent = x.name + " · " + x.type + (x.is_active ? " · aktiv" : "");
+      b.onclick = async () => {
+        S.deviceId = x.id; S.deviceName = x.name; persist();
+        try { await api("PUT", "/me/player", { device_ids: [x.id], play: false }); } catch {}
+        toast("Lautsprecher: " + x.name); loadDevices(); poll();
+      };
+      list.appendChild(b);
+    });
+  } catch (e) { toast(e.message, true); }
+}
+
+/* ---------- Ereignisse ---------- */
+$("btnGoal").onclick = goal;
+$("btnFade").onclick = fadeOut;
+$("btnStop").onclick = stopNow;
+let volT;
+$("vol").addEventListener("input", e => { S.vol = +e.target.value; $("volVal").textContent = S.vol; persist(); cancelFade();
+  clearTimeout(volT); volT = setTimeout(() => setVolume(S.vol).catch(err => toast(err.message, true)), 250); });
+$("clientId").addEventListener("change", e => { S.clientId = e.target.value.trim(); persist(); });
+$("goalMode").addEventListener("change", e => { S.goalMode = e.target.value; S.goalIdx = 0; persist(); renderLive(); });
+$("fadeSec").addEventListener("change", e => { S.fadeSec = Math.min(10, Math.max(0.5, parseFloat(e.target.value) || 3)); e.target.value = S.fadeSec; persist(); });
+$("btnLogin").onclick = login;
+$("btnLogout").onclick = () => { T = null; try { localStorage.removeItem(TKEY); } catch {} renderSetup(); $("status").className = "chip"; $("status").textContent = "nicht verbunden"; };
+$("btnCopy").onclick = async () => {
+  try { await navigator.clipboard.writeText(REDIRECT); toast("Kopiert"); }
+  catch { const r = document.createRange(); r.selectNodeContents($("redirUri")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast("Markiert – jetzt kopieren"); }
+};
+$("btnDevices").onclick = loadDevices;
+$("btnAddGoal").onclick = () => { S.goals.push({ id: uid(), label: "Torlied " + (S.goals.length + 1), uri: "", startMs: 0, autoSec: 0 }); persist(); renderSetup(); renderLive(); };
+$("btnExport").onclick = () => { const c = Object.assign({}, S); $("backup").value = JSON.stringify(c); $("backup").select(); toast("Sicherung erzeugt – Text kopieren"); };
+$("btnImport").onclick = () => {
+  try { const j = JSON.parse($("backup").value); if (!j || !Array.isArray(j.goals) || !Array.isArray(j.phases)) throw 0;
+    S = Object.assign(defaults(), j); persist(); renderSetup(); renderLive(); toast("Sicherung geladen"); }
+  catch { toast("Der Text ist keine gültige Sicherung.", true); }
+};
+function tab(which) {
+  $("live").hidden = which !== "live"; $("setup").hidden = which !== "setup";
+  $("tabLive").classList.toggle("on", which === "live"); $("tabSetup").classList.toggle("on", which === "setup");
+  if (which === "setup") renderSetup(); else renderLive();
+  window.scrollTo(0, 0);
+}
+$("tabLive").onclick = () => tab("live");
+$("tabSetup").onclick = () => tab("setup");
+document.addEventListener("click", wake, { once: true });
+
+/* ---------- Start ---------- */
+(async () => {
+  await handleRedirect();
+  renderLive(); renderSetup();
+  if (!T || !S.clientId) tab("setup"); else { poll(); }
+})();
+})();
+</script>
+</body>
+</html>
