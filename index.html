@@ -24,6 +24,7 @@
     --fg:#0d1a3a; --muted:#4a5b82; --accent:#1446c8; --on-accent:#ffffff; --goal:#1446c8; --goal-ink:#ffffff; --danger:#c8321f; color-scheme:light }
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{margin:0;background:var(--bg);color:var(--fg)}
 body{font:16px/1.4 var(--body);
   padding-top:env(safe-area-inset-top,0px);padding-bottom:calc(76px + env(safe-area-inset-bottom,0px));
@@ -85,9 +86,10 @@ code,.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.85rem;wo
 details summary{cursor:pointer;font-weight:600}
 ol{padding-left:20px;margin:8px 0 0}
 ol li{margin-bottom:6px}
-.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr;gap:8px;
+.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;
   padding:10px max(14px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(14px,env(safe-area-inset-left,0px))}
-.tabs button{font-family:var(--display);text-transform:uppercase;letter-spacing:.06em;font-size:1.05rem;background:transparent}
+.tabs a{display:flex;align-items:center;justify-content:center;text-decoration:none;color:var(--fg);border-radius:12px;font-weight:600}
+.tabs button,.tabs a{font-family:var(--display);text-transform:uppercase;letter-spacing:.06em;font-size:1.05rem;background:transparent}
 .tabs button.on{background:var(--panel2);color:var(--accent)}
 .toast{position:fixed;left:50%;bottom:calc(86px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:12px;font-weight:600;max-width:calc(100% - 32px);z-index:20;box-shadow:0 6px 20px rgba(0,0,0,.3)}
 .toast.err{background:var(--danger);color:#fff}
@@ -186,7 +188,8 @@ ol li{margin-bottom:6px}
 </div>
 
 <nav class="tabs">
-  <button id="tabLive" class="on">Live</button>
+  <button id="tabLive" class="on">Musik</button>
+  <a id="tabStats" href="https://claude.ai/artifact/ALhPLM7Gd7zy3d2mSxFZkn" target="_blank" rel="noopener">Statistik ↗</a>
   <button id="tabSetup">Einstellungen</button>
 </nav>
 
