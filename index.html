@@ -59,6 +59,10 @@ button[disabled]{opacity:.45;cursor:not-allowed}
 .goals{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
 .goals button{flex:0 0 auto;font-size:.9rem;background:var(--panel);border:1px solid var(--line)}
 .goals button.next{border-color:var(--goal)}
+.hymns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.hymn{background:var(--panel);border:1px solid var(--line);padding:10px 8px;min-height:64px;display:flex;flex-direction:column;justify-content:center;gap:2px;text-align:left;min-width:0}
+.hymn b{font-family:var(--display);font-size:.98rem;line-height:1.1;text-transform:uppercase;letter-spacing:.01em;overflow-wrap:break-word;hyphens:auto}
+.hymn span{font-size:.75rem;color:var(--muted);font-weight:500}
 .phases{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .phase{text-align:left;background:var(--panel);border:1px solid var(--line);padding:14px;min-height:96px;display:flex;flex-direction:column;justify-content:space-between;gap:6px;min-width:0}
 .phase b{font-family:var(--display);font-size:1.35rem;text-transform:uppercase;letter-spacing:.03em;line-height:1.05}
@@ -131,7 +135,7 @@ details.panel summary{font-family:var(--display);font-size:1.3rem;text-transform
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="brand">KSV Röschitz<small>Platzsprecher · v8</small></div>
+    <div class="brand">KSV Röschitz<small>Platzsprecher · v9</small></div>
     <span class="chip" id="status">nicht verbunden</span>
   </header>
 
@@ -150,6 +154,7 @@ details.panel summary{font-family:var(--display);font-size:1.3rem;text-transform
 
     <button class="goal" id="btnGoal"><b>TOR!</b><span id="goalNext">Torlied in Einstellungen festlegen</span></button>
     <div class="goals" id="goalChips" aria-label="Torlieder einzeln"></div>
+    <div class="hymns" id="hymnGrid" aria-label="Spieler-Torhymnen"></div>
 
     <div class="phases" id="phaseGrid"></div>
 
@@ -626,13 +631,17 @@ function renderLive() {
     b.onclick = () => playSlot(x, { restoreVol: true });
     chips.appendChild(b);
   });
-  (S.hymns || []).filter(x => x.uri).forEach(x => {
-    const b = document.createElement("button");
-    b.textContent = "♪ " + x.label;
-    b.onclick = () => playSlot(x, { restoreVol: true });
-    chips.appendChild(b);
+  chips.hidden = S.goals.filter(x => x.uri).length < 2;
+  const hg = $("hymnGrid"); hg.textContent = "";
+  const hy = (S.hymns || []).filter(x => x.uri);
+  hy.forEach(x => {
+    const b = document.createElement("button"); b.className = "hymn";
+    const n = document.createElement("b"); n.textContent = x.label;
+    const s = document.createElement("span"); s.textContent = "♪ Torhymne";
+    b.append(n, s); b.onclick = () => playSlot(x, { restoreVol: true });
+    hg.appendChild(b);
   });
-  chips.hidden = S.goals.filter(x => x.uri).length + (S.hymns || []).filter(x => x.uri).length < 2;
+  hg.hidden = !hy.length;
   const grid = $("phaseGrid"); grid.textContent = "";
   S.phases.forEach(p => {
     const b = document.createElement("button");
