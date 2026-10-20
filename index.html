@@ -131,7 +131,7 @@ details.panel summary{font-family:var(--display);font-size:1.3rem;text-transform
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="brand">KSV Röschitz<small>Platzsprecher · v7</small></div>
+    <div class="brand">KSV Röschitz<small>Platzsprecher · v8</small></div>
     <span class="chip" id="status">nicht verbunden</span>
   </header>
 
@@ -285,6 +285,10 @@ details.panel summary{font-family:var(--display);font-size:1.3rem;text-transform
       </div>
       <div id="goalEdit" style="margin-top:12px"></div>
       <div class="row" style="margin-top:12px"><button class="small" id="btnAddGoal">+ Torlied</button></div>
+      <h2 style="margin-top:18px">Spieler-Torhymnen</h2>
+      <p class="hint">Trifft dieser Spieler, läuft im Reiter Spiel seine Hymne statt des normalen Torlieds. Der Name muss wie im Kader geschrieben sein.</p>
+      <div id="hymnEdit" style="margin-top:12px"></div>
+      <div class="row" style="margin-top:12px"><button class="small" id="btnAddHymn">+ Spieler-Hymne</button></div>
     </div>
 
     <div class="panel">
@@ -350,7 +354,7 @@ const load = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSO
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 const defaults = () => ({
   clientId: DEFAULT_CLIENT_ID, deviceId: "", deviceName: "", fadeSec: 3, vol: 80, goalMode: "rotation", goalIdx: 0,
-  verein: "KSV Röschitz", ort: "Röschitz", autoGoal: true, saison: {},
+  verein: "KSV Röschitz", ort: "Röschitz", autoGoal: true, saison: {}, hymns: [],
   standard: [
     { t: "Kantine", x: "Unsere Kantine hat für Sie geöffnet – wir freuen uns auf Ihren Besuch!" },
     { t: "Zuschauerzahl", x: "Wir begrüßen heute {zuschauer} Zuschauerinnen und Zuschauer hier in {ort}. Herzlichen Dank für Ihre Unterstützung!" },
@@ -622,7 +626,13 @@ function renderLive() {
     b.onclick = () => playSlot(x, { restoreVol: true });
     chips.appendChild(b);
   });
-  chips.hidden = S.goals.filter(x => x.uri).length < 2;
+  (S.hymns || []).filter(x => x.uri).forEach(x => {
+    const b = document.createElement("button");
+    b.textContent = "♪ " + x.label;
+    b.onclick = () => playSlot(x, { restoreVol: true });
+    chips.appendChild(b);
+  });
+  chips.hidden = S.goals.filter(x => x.uri).length + (S.hymns || []).filter(x => x.uri).length < 2;
   const grid = $("phaseGrid"); grid.textContent = "";
   S.phases.forEach(p => {
     const b = document.createElement("button");
@@ -697,7 +707,8 @@ function slotEditor(slot, isGoal) {
   r4.append(btn("Laufenden Song + Stelle übernehmen", "", () => captureTrack(slot)));
   if (!isGoal) r4.append(btn("Laufende Playlist übernehmen", "", () => captureContext(slot)));
   r4.append(btn("Testen", "pri", () => playSlot(slot, { restoreVol: true })));
-  if (isGoal && S.goals.length > 1) r4.append(btn("Löschen", "del", () => { S.goals = S.goals.filter(x => x !== slot); S.goalIdx = 0; persist(); renderSetup(); renderLive(); }));
+  if (isGoal === "hymn") r4.append(btn("Löschen", "del", () => { S.hymns = S.hymns.filter(x => x !== slot); persist(); renderSetup(); renderLive(); }));
+  if (isGoal === true && S.goals.length > 1) r4.append(btn("Löschen", "del", () => { S.goals = S.goals.filter(x => x !== slot); S.goalIdx = 0; persist(); renderSetup(); renderLive(); }));
   box.append(r4);
   if (slot.uri) { const p = document.createElement("p"); p.className = "hint"; p.textContent = slotInfo(slot); box.append(p); }
   return box;
@@ -711,6 +722,8 @@ function renderSetup() {
   $("btnLogout").hidden = !T;
   $("btnLogin").textContent = T ? "Neu anmelden" : "Mit Spotify anmelden";
   const ge = $("goalEdit"); ge.textContent = ""; S.goals.forEach(g => ge.appendChild(slotEditor(g, true)));
+  const he = $("hymnEdit"); he.textContent = "";
+  (S.hymns || []).forEach(x => { const box = slotEditor(x, "hymn"); const l = box.querySelector("label"); if (l) l.textContent = "Spieler (Name wie im Kader)"; he.appendChild(box); });
   const pe = $("phaseEdit"); pe.textContent = ""; S.phases.forEach(p => pe.appendChild(slotEditor(p, false)));
   renderStdEdit();
 }
@@ -751,6 +764,7 @@ $("btnCopy").onclick = async () => {
   catch { const r = document.createRange(); r.selectNodeContents($("redirUri")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast("Markiert – jetzt kopieren"); }
 };
 $("btnDevices").onclick = loadDevices;
+$("btnAddHymn").onclick = () => { (S.hymns = S.hymns || []).push({ id: uid(), label: "Spielername", uri: "", startMs: 0, autoSec: 0 }); persist(); renderSetup(); };
 $("btnAddGoal").onclick = () => { S.goals.push({ id: uid(), label: "Torlied " + (S.goals.length + 1), uri: "", startMs: 0, autoSec: 0 }); persist(); renderSetup(); renderLive(); };
 $("btnExport").onclick = () => { const c = Object.assign({}, S); $("backup").value = JSON.stringify(c); $("backup").select(); toast("Sicherung erzeugt – Text kopieren"); };
 $("btnImport").onclick = () => {
@@ -888,13 +902,22 @@ $("dsClose").onclick = () => $("ds").hidden = true;
 $("pickClose").onclick = () => $("pick").hidden = true;
 
 /* Aktionen */
+function hymnFor(pid) {
+  const p = findP("h", pid); if (!p) return null;
+  const k = sKey(p.name);
+  return (S.hymns || []).find(x => x.uri && sKey(x.label) === k) || null;
+}
 function torFlow(side) {
-  if (side === "h" && S.autoGoal) goal();
+  const anyHymn = (S.hymns || []).some(x => x.uri);
+  if (side === "h" && S.autoGoal && !anyHymn) goal();
   const { k, on } = onPitch(side);
-  const opts = k.filter(p => on.has(p.id)).map(p => ({ label: short(p) + (side === "h" ? " · " + seasonGoals(p.id, "__alle__") + " T" : ""), val: p.id }));
+  const opts = k.filter(p => on.has(p.id)).map(p => ({ label: short(p) + (side === "h" ? " · " + seasonGoals(p.id, "__alle__") + " T" + (hymnFor(p.id) ? " ♪" : "") : ""), val: p.id }));
   if (side === "h") opts.push({ label: "Eigentor der Gäste", val: "og", wide: true });
   opts.push({ label: "Ohne Namen", val: "", wide: true });
-  pick(side === "h" ? "Tor " + heim() + " – wer?" : "Tor " + gast() + " – wer?", opts, p => addTor(side, p));
+  pick(side === "h" ? "Tor " + heim() + " – wer?" : "Tor " + gast() + " – wer?", opts, p => {
+    if (side === "h" && S.autoGoal && anyHymn) { const hy = p && p !== "og" ? hymnFor(p) : null; if (hy) playSlot(hy, { restoreVol: true }); else goal(); }
+    addTor(side, p);
+  });
 }
 function addTor(side, p) {
   const mi = minInfo(), e = { id: uid(), typ: "tor", side, p, min: mi.lbl };
