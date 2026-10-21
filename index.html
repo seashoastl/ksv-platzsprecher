@@ -137,7 +137,7 @@ details.panel summary{font-family:var(--display);font-size:1.3rem;text-transform
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="brand">KSV Röschitz<small>Platzsprecher · v11</small></div>
+    <div class="brand">KSV Röschitz<small>Platzsprecher · v13</small></div>
     <span class="chip" id="status">nicht verbunden</span>
   </header>
 
@@ -180,6 +180,7 @@ details.panel summary{font-family:var(--display);font-size:1.3rem;text-transform
         <button class="small pri" id="gRun">Anpfiff</button>
         <button class="small" id="gHz2">2. HZ</button>
         <button class="small" id="gEnd">Abpfiff</button>
+        <button class="small" id="gReset" aria-label="Uhr auf 0 zurücksetzen">Uhr 0</button>
       </div>
     </div>
 
@@ -198,6 +199,7 @@ details.panel summary{font-family:var(--display);font-size:1.3rem;text-transform
         <button data-ds="aufG">Aufstellung Gäste</button>
         <button data-ds="aufH">Aufstellung Heim</button>
         <button data-ds="spons">Sponsoren</button>
+        <button data-ds="ehren">Ehrenanstoß</button>
       </div>
       <div class="lbl">Im Spiel</div>
       <div class="dgrid">
@@ -227,9 +229,16 @@ details.panel summary{font-family:var(--display);font-size:1.3rem;text-transform
           <div class="field"><label class="lbl" for="g_schiri">Schiedsrichter</label><input id="g_schiri" data-g="schiri" autocomplete="off"></div>
           <div class="field"><label class="lbl" for="g_zuschauer">Zuschauer</label><input id="g_zuschauer" data-g="zuschauer" inputmode="numeric" autocomplete="off"></div>
         </div>
+        <div class="field"><label class="lbl" for="g_gegnerArt">Artikel Gegner</label><select id="g_gegnerArt" data-g="gegnerArt"><option value="der">der (USV, UFC, SC …)</option><option value="die">die (SG, Union …)</option><option value="das">das</option><option value="">ohne Artikel</option></select></div>
+        <div class="row">
+          <div class="field"><label class="lbl" for="g_reserve">Ergebnis Reserve</label><input id="g_reserve" data-g="reserve" placeholder="z. B. 3:1" autocomplete="off"></div>
+          <div class="field"><label class="lbl" for="g_reserveTore">Torschützen Reserve</label><input id="g_reserveTore" data-g="reserveTore" autocomplete="off"></div>
+        </div>
         <div class="field"><label class="lbl" for="g_patron">Matchpatronanz</label><input id="g_patron" data-g="patron" placeholder="z. B. Weingut Mustermann" autocomplete="off"></div>
         <div class="field"><label class="lbl" for="g_ball">Matchballspende</label><input id="g_ball" data-g="ball" autocomplete="off"></div>
         <div class="field"><label class="lbl" for="g_wein">Weinpatronanz</label><input id="g_wein" data-g="wein" autocomplete="off"></div>
+        <div class="field"><label class="lbl" for="g_ehren">Ehrenanstoß durch</label><input id="g_ehren" data-g="ehren" autocomplete="off"></div>
+        <div class="field"><label class="lbl" for="g_naechstes">Nächstes Heimspiel (Satz für die Verabschiedung)</label><textarea id="g_naechstes" data-g="naechstes" rows="3" placeholder="Bereits nächsten Sonntag ist … bei uns zu Gast. Spielbeginn der Kampfmannschaft 15:00 Uhr, Reserve 13:00 Uhr."></textarea></div>
         <div class="row">
           <div class="field"><label class="lbl" for="g_trainerH">Trainer Heim</label><input id="g_trainerH" data-g="trainerH" autocomplete="off"></div>
           <div class="field"><label class="lbl" for="g_trainerG">Trainer Gäste</label><input id="g_trainerG" data-g="trainerG" autocomplete="off"></div>
@@ -311,8 +320,12 @@ details.panel summary{font-family:var(--display);font-size:1.3rem;text-transform
       <div class="row">
         <div class="field"><label class="lbl" for="setVerein">Vereinsname</label><input id="setVerein" autocomplete="off"></div>
         <div class="field"><label class="lbl" for="setOrt">Ort</label><input id="setOrt" autocomplete="off"></div>
+        <div class="field"><label class="lbl" for="setVereinArt">Artikel</label><select id="setVereinArt"><option value="die">die</option><option value="der">der</option><option value="das">das</option><option value="">ohne</option></select></div>
       </div>
       <label class="row" style="align-items:center;gap:8px;margin-top:10px"><input type="checkbox" id="setAutoGoal" style="width:22px;height:22px"> Bei „Tor KSV“ im Reiter Spiel automatisch das Torlied starten</label>
+      <h2 style="margin-top:16px">Durchsage-Vorlagen</h2>
+      <p class="hint">Platzhalter in geschwungenen Klammern werden ersetzt, z. B. {verein_dat}, {gast_akk}, {gast_ort}, {minute}, {score}, {torschuetze}, {saisontor}, {raus}, {rein}, {sponsoren}, {torschuetzen}. Text in eckigen Klammern [ … ] fällt weg, wenn ein Platzhalter darin leer ist.</p>
+      <div id="tplEdit"></div>
       <h2 style="margin-top:16px">Saisontore</h2>
       <p class="hint">Tore aus abgeschlossenen Spielen, eine Zeile pro Spieler: Name: Anzahl. Name genau wie im Kader. Bei „Neues Spiel anlegen“ werden die Heimtore automatisch dazugezählt.</p>
       <textarea id="saisonEdit" rows="6" style="margin-top:8px" spellcheck="false" placeholder="Antonin Jakes: 5&#10;Markus Quirtner: 3"></textarea>
@@ -363,7 +376,7 @@ const load = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSO
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 const defaults = () => ({
   clientId: DEFAULT_CLIENT_ID, deviceId: "", deviceName: "", fadeSec: 3, vol: 80, goalMode: "rotation", goalIdx: 0,
-  verein: "KSV Röschitz", ort: "Röschitz", autoGoal: true, saison: {}, hymns: [],
+  verein: "SG Röschitz/Sitzendorf/Roggendorf", vereinArt: "die", ort: "Röschitz", autoGoal: true, saison: {}, hymns: [],
   standard: [
     { t: "Kantine", x: "Unsere Kantine hat für Sie geöffnet – wir freuen uns auf Ihren Besuch!" },
     { t: "Zuschauerzahl", x: "Wir begrüßen heute {zuschauer} Zuschauerinnen und Zuschauer hier in {ort}. Herzlichen Dank für Ihre Unterstützung!" },
@@ -381,6 +394,11 @@ const defaults = () => ({
 });
 let S = Object.assign(defaults(), load(KEY, {}));
 if (!S.clientId) S.clientId = DEFAULT_CLIENT_ID;
+if (!S.tplMig1) {
+  if (!S.verein || S.verein === "KSV Röschitz") { S.verein = "SG Röschitz/Sitzendorf/Roggendorf"; S.vereinArt = "die"; }
+  S.tplMig1 = true;
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {}
+}
 if (Array.isArray(S.phases) && !S.phases.some(p => p.id === "lineup")) {
   S.phases.splice(Math.min(1, S.phases.length), 0, { id: "lineup", label: "Aufstellung", uri: "", startMs: 0, shuffle: false, xfade: true, vol: 0 });
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {}
@@ -831,7 +849,7 @@ document.addEventListener("click", wake, { once: true });
 /* ---------- Spieltag ---------- */
 const GKEY = "ksv-platzsprecher-spiel";
 const newClock = () => ({ started: false, run: false, since: 0, acc: 0, hz: 1, end: false });
-const newGame = keep => ({ gegner: "", bewerb: "", schiri: "", zuschauer: "", patron: "", ball: "", wein: "",
+const newGame = keep => ({ gegnerArt: "der", reserve: "", reserveTore: "", ehren: "", naechstes: "", gegner: "", bewerb: "", schiri: "", zuschauer: "", patron: "", ball: "", wein: "",
   trainerH: keep ? keep.trainerH : "", trainerG: "", kaderH: keep ? keep.kaderH : "", kaderG: "", ev: [], clock: newClock() });
 let G = Object.assign(newGame(), load(GKEY, {}));
 G.clock = Object.assign(newClock(), G.clock || {});
@@ -881,10 +899,7 @@ function minInfo() {
   if (hz === 2 && m > 90) return { lbl: "90+" + (m - 90), say: "in der Nachspielzeit" };
   return { lbl: String(m), say: "in der " + m + ". Minute" };
 }
-function fillT(t) {
-  const map = { verein: heim(), gast: gast(), ort: ort(), stand: stand(), zuschauer: G.zuschauer || "…", schiri: G.schiri || "…", bewerb: G.bewerb || "", minute: minInfo().lbl + "." };
-  return String(t || "").replace(/\{(\w+)\}/g, (a, k) => (k in map ? map[k] : a));
-}
+function fillT(t) { return renderText(t); }
 function scorers() {
   const by = { h: [], g: [] };
   for (const e of G.ev) if (e.typ === "tor") {
@@ -898,6 +913,130 @@ function scorers() {
 }
 
 /* Texte */
+/* ---------- Durchsage-Vorlagen ---------- */
+// {platzhalter} wird ersetzt. [Text mit {x}] fällt weg, wenn x leer ist.
+const TPL = [
+  { k: "begr", t: "Begrüßung", x:
+`Sehr geehrte Damen und Herren, liebe Fußballfreunde!
+Ein herzliches Willkommen zum Meisterschaftsspiel[ der {bewerb}] zwischen {verein_dat} und {gast_dat}.
+Besonders begrüßen wir die Gastmannschaft mit ihren mitgereisten Fans – herzlich willkommen in {ort}!
+[Das Spiel der Reservemannschaften endete {reserve}.][ Die Torschützen für die SG waren {reserve_tore}.]` },
+  { k: "aufG", t: "Aufstellung Gäste", x:
+`Wir kommen nun zu den Aufstellungen und beginnen mit unseren Gästen aus {gast_ort}[ unter Trainer {trainer_gast}].
+
+{aufstellung_gast}` },
+  { k: "aufH", t: "Aufstellung Heim", x:
+`Und nun zu unserer Mannschaft.[ Trainer {trainer_heim} hat sich für folgende Aufstellung entschieden:]
+
+{aufstellung_heim}
+
+[Das Spiel wird geleitet von Schiedsrichter {schiri}.]` },
+  { k: "spons", t: "Sponsoren", x:
+`Ein herzlicher Dank gilt an dieser Stelle auch unseren Sponsoren.
+[Heute besonders hervorzuheben ist {patron} – herzlichen Dank für die Übernahme der Matchpatronanz!]
+[Ein großes Dankeschön gilt {ball} für die heutige Matchballspende!]
+[Hervorragender Wein darf in {ort} natürlich niemals fehlen! Ein großer Dank gilt daher {wein} für die großzügige Weinspende zum heutigen Spiel.]
+Herzlichen Dank für eure große Unterstützung unseres Vereins!
+Wir wünschen den Mannschaften, dem Schiedsrichter und Ihnen ein spannendes und faires Spiel.` },
+  { k: "ehren", t: "Ehrenanstoß", x:
+`Der Ehrenanstoß erfolgt heute durch {ehrenanstoss}. Herzlichen Dank!
+[Danke auch nochmals an {sponsoren} für die Übernahme der Ballspende und der Patronanzen.]` },
+  { k: "torH", t: "Tor Heim", x:
+`{minute}. Spielminute: Toooor für die Spielgemeinschaft!
+[Torschütze {torschuetze}!][{eigentor}]
+[Es ist sein {saisontor}. Saisontor!]
+Neuer Spielstand: {score}` },
+  { k: "torG", t: "Tor Gäste", x:
+`{minute}. Spielminute: Tor für {gast_akk}.
+[Torschütze {torschuetze}.]
+Neuer Spielstand: {score}` },
+  { k: "wH", t: "Wechsel Heim", x:
+`{minute}. Minute: Spielerwechsel bei {verein_dat}.
+Aus dem Spiel geht {raus}.
+Für ihn neu im Spiel: {rein}.` },
+  { k: "wG", t: "Wechsel Gäste", x:
+`{minute}. Minute: Spielerwechsel bei {gast_dat}.
+Aus dem Spiel geht {raus}.
+Für ihn neu im Spiel: {rein}.` },
+  { k: "hz", t: "Halbzeitstand", x:
+`Halbzeit in {ort}!
+Der Halbzeitstand zwischen {verein_dat} und {gast_dat} lautet {score}.
+[{torschuetzen}]
+[Danke auch nochmals an {sponsoren} für die Übernahme der Ballspende und der Patronanzen.]
+In der Pause ist unsere Kantine für Sie geöffnet!` },
+  { k: "ende", t: "Endstand & Dank", x:
+`Das Spiel zwischen {verein_dat} und {gast_dat} endet {score}.
+[{torschuetzen}]
+[Danke nochmals an {sponsoren} für die Übernahme der Ballspende und der Patronanzen.]
+{verein_nom} bedankt sich für Ihren Besuch.
+[{naechstes}]
+Wir freuen uns, Sie bald wieder hier in {ort} begrüßen zu dürfen.
+Sollten Sie bereits den Weg nach Hause antreten, wünschen wir eine gute und sichere Heimreise – ansonsten noch eine gemütliche Zeit bei uns in {ort}!` }
+];
+const tplText = k => (S.tpl && typeof S.tpl[k] === "string") ? S.tpl[k] : (TPL.find(x => x.k === k) || {}).x || "";
+const ART = { der: ["der", "dem", "den"], die: ["die", "der", "die"], das: ["das", "dem", "das"], "": ["", "", ""] };
+const withArt = (art, name, i) => ((ART[art] || ART[""])[i] + " " + name).trim();
+function gastOrt() {
+  const n = (G.gegner || "").trim(); if (!n) return "";
+  const r = n.split(/\s+/).filter(w => !(/^[A-ZÄÖÜ]{2,}$/.test(w) || w.includes("."))).join(" ");
+  return r || n;
+}
+const nmMit = p => { if (!p) return ""; const n = String(p.name).replace(/\s*\(K\)/gi, ""); return p.nr ? "mit der Nummer " + p.nr + ", " + n : n; };
+const nmA = p => { if (!p) return ""; const n = String(p.name).replace(/\s*\(K\)/gi, ""); return p.nr ? "die Nummer " + p.nr + ", " + n : n; };
+function lineup(side) {
+  const k = kader(side); if (!k.length) return "(Kader bei „Spieldaten“ eintragen)";
+  const cap = p => /\(K\)/i.test(p.name) ? " – Kapitän" : "";
+  const nmL = p => String(p.name).replace(/\s*\(K\)/gi, "");
+  const st = k.filter(p => p.start), bank = k.filter(p => !p.start);
+  const l = [];
+  if (st[0]) l.push("Im Tor" + (st[0].nr ? " mit der Nummer " + st[0].nr : "") + ": " + nmL(st[0]) + cap(st[0]));
+  st.slice(1).forEach(p => l.push((p.nr ? "Nummer " + p.nr + ": " : "") + nmL(p) + cap(p)));
+  if (bank.length) { l.push(""); l.push("Auf der Ersatzbank:"); bank.forEach(p => l.push((p.tag === "ET" ? "Ersatztormann " : p.nr ? "Nummer " + p.nr + ": " : "") + nmL(p))); }
+  return l.join("\n");
+}
+function sponsorList() {
+  const s = [G.patron, G.ball, G.wein].map(x => (x || "").trim()).filter(Boolean);
+  return s.length < 2 ? (s[0] || "") : s.slice(0, -1).join(", ") + " und " + s[s.length - 1];
+}
+function scorerSummary() {
+  const by = { h: [], g: [] };
+  for (const e of G.ev) if (e.typ === "tor") {
+    const n = e.p === "og" ? "Eigentor" : e.p ? sName((findP(e.side, e.p) || {}).name || "") : "";
+    by[e.side].push((n ? n + " " : "") + "(" + e.min + ".)");
+  }
+  const l = [];
+  if (by.h.length) l.push("Unsere Torschützen: " + by.h.join(", ") + ".");
+  if (by.g.length) l.push("Für " + withArt(G.gegnerArt || "der", gast(), 2) + " trafen: " + by.g.join(", ") + ".");
+  return l.join("\n");
+}
+function baseCtx() {
+  const s = score(), va = S.vereinArt == null ? "die" : S.vereinArt, ga = G.gegnerArt == null ? "der" : G.gegnerArt;
+  return {
+    verein: heim(), verein_nom: withArt(va, heim(), 0), verein_dat: withArt(va, heim(), 1), verein_akk: withArt(va, heim(), 2),
+    gast: gast(), gast_nom: withArt(ga, gast(), 0), gast_dat: withArt(ga, gast(), 1), gast_akk: withArt(ga, gast(), 2), gast_ort: gastOrt() || gast(),
+    ort: ort(), bewerb: G.bewerb || "", schiri: G.schiri || "", zuschauer: G.zuschauer || "",
+    patron: G.patron || "", ball: G.ball || "", wein: G.wein || "", sponsoren: sponsorList(),
+    ehrenanstoss: G.ehren || "", reserve: G.reserve || "", reserve_tore: G.reserveTore || "", naechstes: G.naechstes || "",
+    trainer_heim: G.trainerH || "", trainer_gast: G.trainerG || "",
+    aufstellung_heim: lineup("h"), aufstellung_gast: lineup("g"),
+    score: s.h + ":" + s.g, stand: stand(), torschuetzen: scorerSummary(), minute: G.clock.started ? minInfo().lbl : ""
+  };
+}
+function renderText(text, extra) {
+  const ctx = Object.assign(baseCtx(), extra || {});
+  const val = k => (k in ctx ? String(ctx[k] == null ? "" : ctx[k]) : null);
+  let out = String(text || "").replace(/\[([^\[\]]*)\]/g, (m, inner) => {
+    const ks = [...inner.matchAll(/\{(\w+)\}/g)].map(x => x[1]);
+    return ks.every(k => val(k) !== "") ? inner : "\u0000";
+  });
+  out = out.replace(/\{(\w+)\}/g, (m, k) => { const v = val(k); return v === null ? m : v; });
+  const lines = out.split("\n").filter(l => !/^[\s\u0000]*\u0000[\s\u0000]*$/.test(l)).map(l => l.replace(/\u0000/g, "").replace(/[ \t]+/g, " ").trim()), res = [];
+  lines.forEach(l => { if (l || (res.length && res[res.length - 1] !== "")) res.push(l ? l.charAt(0).toUpperCase() + l.slice(1) : ""); });
+  while (res.length && res[res.length - 1] === "") res.pop();
+  return res.join("\n");
+}
+const say2 = (k, extra) => { const d = TPL.find(x => x.k === k); say(d ? d.t : "Durchsage", renderText(tplText(k), extra)); };
+
 const TX = {
   begr() {
     let t = "Meine Damen und Herren, liebe Fußballfreunde!\nHerzlich willkommen in " + ort() + " zum Spiel" + (G.bewerb ? " der " + G.bewerb : "") + " zwischen " + heim() + " und " + gast() + ".\n";
@@ -967,14 +1106,10 @@ function torFlow(side) {
 function addTor(side, p) {
   const mi = minInfo(), e = { id: uid(), typ: "tor", side, p, min: mi.lbl };
   G.ev.push(e);
-  let t;
-  if (side === "h") {
-    t = "Tooor für " + heim() + "!\n";
-    t += p === "og" ? "Ein Eigentor " + mi.say + ".\n" : p ? "Torschütze " + mi.say + ":\n" + nm(findP("h", p)) + "!\nEs ist sein " + seasonGoals(p, e.id) + ". Saisontor!\n" : "Getroffen " + mi.say + ".\n";
-  } else {
-    t = "Tor für " + gast() + " " + mi.say + ".\n" + (p ? "Torschütze: " + nm(findP("g", p)) + ".\n" : "");
-  }
-  t += "\nSpielstand: " + stand() + ".";
+  const pl = p && p !== "og" ? findP(side, p) : null;
+  const extra = { minute: mi.lbl, torschuetze: pl ? nmMit(pl) : "", eigentor: p === "og" ? "Ein Eigentor der Gäste." : "",
+    saisontor: side === "h" && pl ? String(seasonGoals(p, e.id)) : "" };
+  const t = renderText(tplText(side === "h" ? "torH" : "torG"), extra);
   e.txt = t; saveG(); renderSpiel(); say("Tor", t);
 }
 function wechselFlow(side) {
@@ -986,7 +1121,7 @@ function wechselFlow(side) {
     if (!ins.length) { toast("Keine Spieler mehr auf der Bank.", true); return; }
     pick("Für " + short(findP(side, out)) + " kommt …", ins.map(p => ({ label: short(p), val: p.id })), inn => {
       const mi = minInfo();
-      const t = "Spielerwechsel bei " + team + ":\n\nEs geht: " + nm(findP(side, out)) + "\nEs kommt: " + nm(findP(side, inn));
+      const t = renderText(tplText(side === "h" ? "wH" : "wG"), { minute: mi.lbl, raus: nmA(findP(side, out)), rein: nmA(findP(side, inn)) });
       G.ev.push({ id: uid(), typ: "wechsel", side, p: out, p2: inn, min: mi.lbl, txt: t });
       saveG(); renderSpiel(); say("Wechsel", t);
     });
@@ -1015,14 +1150,18 @@ $("gEnd").onclick = e => {
   const c = G.clock; if (c.run) c.acc += Date.now() - c.since;
   c.run = false; c.end = true; saveG(); renderSpiel(); say("Endstand", TX.ende());
 };
+$("gReset").onclick = e => {
+  if (!arm("reset", e.currentTarget, "Uhr auf 0?")) return;
+  e.currentTarget.textContent = "Uhr 0"; e.currentTarget.classList.remove("armed");
+  G.clock = newClock(); saveG(); renderSpiel(); toast("Uhr auf 0:00 zurückgesetzt");
+};
 $("gTorH").onclick = () => torFlow("h");
 $("gTorG").onclick = () => torFlow("g");
 $("gWH").onclick = () => wechselFlow("h");
 $("gWG").onclick = () => wechselFlow("g");
 document.querySelectorAll("[data-ds]").forEach(b => b.onclick = () => {
   const k = b.dataset.ds, title = b.textContent;
-  if (k === "aufG") return say(title, TX.auf("g"));
-  if (k === "aufH") return say(title, TX.auf("h"));
+  if (["begr", "aufG", "aufH", "spons", "ehren", "hz", "ende"].includes(k)) return say2(k);
   if (k === "nach") return pick("Nachspielzeit", [1, 2, 3, 4, 5, 6, 7].map(n => ({ label: n + " Min.", val: n })), n =>
     say("Nachspielzeit", "Die Nachspielzeit beträgt " + (n === 1 ? "eine Minute." : n + " Minuten.")));
   say(title, TX[k]());
@@ -1062,6 +1201,7 @@ function renderSpiel() {
   $("gRun").hidden = c.end;
   $("gHz2").hidden = !c.started || c.hz === 2 || c.end;
   $("gEnd").hidden = !c.started || c.end;
+  $("gReset").hidden = !c.started && !c.end && c.acc === 0;
   const std = $("gStd"); std.textContent = "";
   (S.standard || []).forEach(d => { const b = document.createElement("button"); b.textContent = d.t || "Durchsage"; b.onclick = () => say(d.t || "Durchsage", fillT(d.x)); std.appendChild(b); });
   const tk = $("gTick"); tk.textContent = "";
@@ -1091,8 +1231,20 @@ $("saisonEdit").addEventListener("change", e => {
   e.target.value.split("\n").forEach(l => { const m = l.match(/^(.*?)[\s:=–-]+(\d+)\s*$/); if (m && m[1].trim()) { const n = sName(m[1]); o[sKey(n)] = { name: n, n: +m[2] }; } });
   S.saison = o; persist(); renderSaison(); toast("Saisontore gespeichert");
 });
+function renderTplEdit() {
+  const box = $("tplEdit"); if (!box) return; box.textContent = "";
+  TPL.forEach(d => {
+    const row = document.createElement("div"); row.className = "stdrow";
+    const l = document.createElement("label"); l.className = "lbl"; l.textContent = d.t; l.htmlFor = "tpl_" + d.k;
+    const ta = document.createElement("textarea"); ta.id = "tpl_" + d.k; ta.rows = Math.min(9, tplText(d.k).split("\n").length + 1); ta.value = tplText(d.k); ta.spellcheck = false;
+    ta.addEventListener("change", () => { S.tpl = S.tpl || {}; S.tpl[d.k] = ta.value; persist(); toast("Vorlage gespeichert"); });
+    const r = document.createElement("div"); r.className = "row";
+    r.append(btn("Original wiederherstellen", "", () => { if (S.tpl) delete S.tpl[d.k]; persist(); renderTplEdit(); toast("Vorlage zurückgesetzt"); }));
+    row.append(l, ta, r); box.appendChild(row);
+  });
+}
 function renderStdEdit() {
-  renderSaison();
+  renderSaison(); renderTplEdit(); $("setVereinArt").value = S.vereinArt == null ? "die" : S.vereinArt;
   $("setVerein").value = S.verein || ""; $("setOrt").value = S.ort || ""; $("setAutoGoal").checked = !!S.autoGoal;
   const box = $("stdEdit"); box.textContent = "";
   (S.standard || []).forEach((d, i) => {
@@ -1106,6 +1258,7 @@ function renderStdEdit() {
   });
 }
 $("setVerein").addEventListener("change", e => { S.verein = e.target.value.trim(); persist(); renderSpiel(); });
+$("setVereinArt").addEventListener("change", e => { S.vereinArt = e.target.value; persist(); });
 $("setOrt").addEventListener("change", e => { S.ort = e.target.value.trim(); persist(); });
 $("setAutoGoal").addEventListener("change", e => { S.autoGoal = e.target.checked; persist(); });
 $("btnAddStd").onclick = () => { (S.standard = S.standard || []).push({ t: "Neue Durchsage", x: "" }); persist(); renderStdEdit(); renderSpiel(); };
