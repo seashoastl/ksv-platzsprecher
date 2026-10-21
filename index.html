@@ -65,10 +65,12 @@ button[disabled]{opacity:.45;cursor:not-allowed}
 .hymn span{font-size:.75rem;color:var(--muted);font-weight:500}
 .phases{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .phase{text-align:left;background:var(--panel);border:1px solid var(--line);padding:14px;min-height:96px;display:flex;flex-direction:column;justify-content:space-between;gap:6px;min-width:0}
-.phase b{font-family:var(--display);font-size:1.35rem;text-transform:uppercase;letter-spacing:.03em;line-height:1.05}
+.phase b{font-family:var(--display);font-size:clamp(1.05rem,5.2vw,1.35rem);overflow-wrap:break-word;hyphens:auto;max-width:100%;text-transform:uppercase;letter-spacing:.03em;line-height:1.05}
 .phase span{font-size:.82rem;color:var(--muted);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .phase.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
-.vol{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.vol{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.vbtn{width:48px;height:48px;padding:0;font-size:1.6rem;line-height:1;font-weight:700;flex:0 0 auto}
+.vol input[type=range]{min-width:80px}
 #volHint{flex-basis:100%;margin:0}
 .vol label{font-size:.85rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.08em}
 input[type=range]{flex:1;accent-color:var(--accent)}
@@ -135,7 +137,7 @@ details.panel summary{font-family:var(--display);font-size:1.3rem;text-transform
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="brand">KSV Röschitz<small>Platzsprecher · v10</small></div>
+    <div class="brand">KSV Röschitz<small>Platzsprecher · v11</small></div>
     <span class="chip" id="status">nicht verbunden</span>
   </header>
 
@@ -160,7 +162,9 @@ details.panel summary{font-family:var(--display);font-size:1.3rem;text-transform
 
     <div class="panel vol">
       <label for="vol">Lautst.</label>
+      <button class="vbtn" id="volDown" aria-label="Leiser">−</button>
       <input type="range" id="vol" min="0" max="100" step="1" value="80">
+      <button class="vbtn" id="volUp" aria-label="Lauter">+</button>
       <span class="time" id="volVal">80</span>
     </div>
     <p class="hint" id="volHint" hidden>Die WiiM meldet feste Lautstärke – Regler und Ausblenden sind aus. In der WiiM-Home-App „Feste Lautstärke“ (Fixed Volume) beim Ausgang deaktivieren.</p>
@@ -480,7 +484,7 @@ let devInfo = null;
 function noteDevice(d) {
   devInfo = d || null;
   const can = !d || d.supports_volume !== false;
-  $("vol").disabled = !can;
+  $("vol").disabled = !can; $("volUp").disabled = !can; $("volDown").disabled = !can;
   $("volHint").hidden = can;
 }
 async function ensureDevice() {
@@ -786,6 +790,13 @@ $("btnGoal").onclick = goal;
 $("btnFade").onclick = fadeOut;
 $("btnStop").onclick = stopNow;
 let volT;
+function stepVol(d) {
+  if ($("vol").disabled) { toast("Die WiiM lässt keine Lautstärkeregelung über Spotify zu.", true); return; }
+  S.vol = Math.max(0, Math.min(100, S.vol + d)); $("vol").value = S.vol; $("volVal").textContent = S.vol; persist(); cancelFade();
+  clearTimeout(volT); volT = setTimeout(() => setVolume(S.vol).catch(err => toast(err.message, true)), 250);
+}
+$("volDown").onclick = () => stepVol(-5);
+$("volUp").onclick = () => stepVol(5);
 $("vol").addEventListener("input", e => { S.vol = +e.target.value; $("volVal").textContent = S.vol; persist(); cancelFade();
   clearTimeout(volT); volT = setTimeout(() => setVolume(S.vol).catch(err => toast(err.message, true)), 250); });
 $("clientId").addEventListener("change", e => { S.clientId = e.target.value.trim(); persist(); });
