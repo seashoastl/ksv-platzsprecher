@@ -137,7 +137,7 @@ details.panel summary{font-family:var(--display);font-size:1.3rem;text-transform
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="brand">KSV Röschitz<small>Platzsprecher · v13</small></div>
+    <div class="brand">KSV Röschitz<small>Platzsprecher · v14</small></div>
     <span class="chip" id="status">nicht verbunden</span>
   </header>
 
@@ -348,9 +348,16 @@ details.panel summary{font-family:var(--display);font-size:1.3rem;text-transform
 
     <div class="panel">
       <h2>Sicherung</h2>
-      <p class="hint">Einstellungen liegen nur auf diesem Handy. Text kopieren und z. B. per Mail sichern, oder gesicherten Text einfügen und laden.</p>
-      <textarea id="backup" rows="4" style="margin-top:8px" spellcheck="false"></textarea>
-      <div class="row" style="margin-top:8px"><button class="small" id="btnExport">Sicherung erzeugen</button><button class="small" id="btnImport">Sicherung laden</button></div>
+      <p class="hint">Alles liegt nur auf diesem Gerät. Die Sicherung enthält Torlieder, Hymnen, Phasen, Durchsage-Vorlagen, Standard-Durchsagen, Saisontore und das aktuelle Spiel (Kader, Sponsoren, Spielstand).</p>
+      <div class="row" style="margin-top:8px">
+        <button class="small pri" id="btnFileOut">Als Datei speichern</button>
+        <button class="small" id="btnFileIn">Datei laden</button>
+        <input type="file" id="fileIn" accept=".json,application/json,text/plain" hidden>
+      </div>
+      <details style="margin-top:12px"><summary>Alternativ: als Text kopieren / einfügen</summary>
+        <textarea id="backup" rows="4" style="margin-top:8px" spellcheck="false" aria-label="Sicherungstext"></textarea>
+        <div class="row" style="margin-top:8px"><button class="small" id="btnExport">Text erzeugen &amp; kopieren</button><button class="small" id="btnImport">Text laden</button></div>
+      </details>
     </div>
   </section>
 </div>
@@ -829,12 +836,38 @@ $("btnCopy").onclick = async () => {
 $("btnDevices").onclick = loadDevices;
 $("btnAddHymn").onclick = () => { (S.hymns = S.hymns || []).push({ id: uid(), label: "Spielername", uri: "", startMs: 0, autoSec: 0 }); persist(); renderSetup(); };
 $("btnAddGoal").onclick = () => { S.goals.push({ id: uid(), label: "Torlied " + (S.goals.length + 1), uri: "", startMs: 0, autoSec: 0 }); persist(); renderSetup(); renderLive(); };
-$("btnExport").onclick = () => { const c = Object.assign({}, S); $("backup").value = JSON.stringify(c); $("backup").select(); toast("Sicherung erzeugt – Text kopieren"); };
-$("btnImport").onclick = () => {
-  try { const j = JSON.parse($("backup").value); if (!j || !Array.isArray(j.goals) || !Array.isArray(j.phases)) throw 0;
-    S = Object.assign(defaults(), j); persist(); renderSetup(); renderLive(); toast("Sicherung geladen"); }
-  catch { toast("Der Text ist keine gültige Sicherung.", true); }
+function backupData() {
+  const s = Object.assign({}, S); delete s.deviceId; delete s.deviceName;
+  return JSON.stringify({ app: "ksv-platzsprecher", v: 2, at: new Date().toISOString(), settings: s, spiel: G });
+}
+function restore(txt) {
+  let j; try { j = JSON.parse(txt); } catch { j = null; }
+  const s = j && (j.settings || j), g = j && j.spiel;
+  if (!s || !Array.isArray(s.goals) || !Array.isArray(s.phases)) { toast("Das ist keine gültige Sicherung.", true); return; }
+  const keep = { deviceId: S.deviceId, deviceName: S.deviceName };
+  S = Object.assign(defaults(), s, keep.deviceId ? keep : {}); persist();
+  if (g && typeof g === "object") { G = Object.assign(newGame(), g); G.clock = Object.assign(newClock(), g.clock || {}); saveG(); }
+  renderSetup(); renderLive(); fillSetup(); renderSpiel();
+  toast("Sicherung geladen" + (g ? " – inkl. Spiel" : ""));
+}
+$("btnFileOut").onclick = () => {
+  const blob = new Blob([backupData()], { type: "application/json" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+  a.download = "platzsprecher-sicherung-" + new Date().toISOString().slice(0, 10) + ".json";
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast("Datei gespeichert (Downloads)");
 };
+$("btnFileIn").onclick = () => $("fileIn").click();
+$("fileIn").addEventListener("change", e => {
+  const f = e.target.files && e.target.files[0]; if (!f) return;
+  f.text().then(restore).catch(() => toast("Datei konnte nicht gelesen werden.", true)); e.target.value = "";
+});
+$("btnExport").onclick = async () => {
+  const t = backupData(); $("backup").value = t;
+  try { await navigator.clipboard.writeText(t); toast("Kopiert – jetzt z. B. per WhatsApp an dich schicken"); }
+  catch { $("backup").select(); toast("Text markiert – jetzt kopieren"); }
+};
+$("btnImport").onclick = () => restore($("backup").value);
 function tab(which) {
   ["live", "spiel", "setup"].forEach(k => $(k).hidden = which !== k);
   $("tabLive").classList.toggle("on", which === "live"); $("tabSpiel").classList.toggle("on", which === "spiel"); $("tabSetup").classList.toggle("on", which === "setup");
