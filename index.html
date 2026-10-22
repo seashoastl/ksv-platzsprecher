@@ -63,9 +63,14 @@ button[disabled]{opacity:.45;cursor:not-allowed}
 .hymn{background:var(--panel);border:1px solid var(--line);padding:10px 8px;min-height:64px;display:flex;flex-direction:column;justify-content:center;gap:2px;text-align:left;min-width:0}
 .hymn b{font-family:var(--display);font-size:.98rem;line-height:1.1;text-transform:uppercase;letter-spacing:.01em;overflow-wrap:break-word;hyphens:auto}
 .hymn span{font-size:.75rem;color:var(--muted);font-weight:500}
+.results{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.phase.res{min-height:80px;padding:12px 10px}
+.phase.res b{font-size:clamp(.9rem,3.9vw,1.15rem);overflow-wrap:normal;word-break:keep-all}
+.res-win{border-color:#2f9e5b} .res-draw{border-color:#c9a227} .res-loss{border-color:#c0473b}
+.phase.res.res-win b{color:#3fbf6a} .phase.res.res-draw b{color:#d9b23a} .phase.res.res-loss b{color:#e0675b}
 .phases{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .phase{text-align:left;background:var(--panel);border:1px solid var(--line);padding:14px;min-height:96px;display:flex;flex-direction:column;justify-content:space-between;gap:6px;min-width:0}
-.phase b{font-family:var(--display);font-size:clamp(1.05rem,5.2vw,1.35rem);overflow-wrap:break-word;hyphens:auto;max-width:100%;text-transform:uppercase;letter-spacing:.03em;line-height:1.05}
+.phase b{font-family:var(--display);font-size:clamp(1rem,4.7vw,1.35rem);overflow-wrap:break-word;hyphens:auto;max-width:100%;text-transform:uppercase;letter-spacing:.03em;line-height:1.05}
 .phase span{font-size:.82rem;color:var(--muted);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .phase.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
 .vol{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -137,7 +142,7 @@ details.panel summary{font-family:var(--display);font-size:1.3rem;text-transform
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="brand">KSV Röschitz<small>Platzsprecher · v14</small></div>
+    <div class="brand">KSV Röschitz<small>Platzsprecher · v16</small></div>
     <span class="chip" id="status">nicht verbunden</span>
   </header>
 
@@ -159,6 +164,8 @@ details.panel summary{font-family:var(--display);font-size:1.3rem;text-transform
     <div class="hymns" id="hymnGrid" aria-label="Spieler-Torhymnen"></div>
 
     <div class="phases" id="phaseGrid"></div>
+    <div class="lbl" style="margin:2px 0 -6px">Nach dem Spiel</div>
+    <div class="results" id="resultGrid"></div>
 
     <div class="panel vol">
       <label for="vol">Lautst.</label>
@@ -347,6 +354,23 @@ details.panel summary{font-family:var(--display);font-size:1.3rem;text-transform
     </div>
 
     <div class="panel">
+      <h2>Online-Sync (GitHub)</h2>
+      <p class="hint">Alle Geräte mit demselben Schlüssel haben automatisch denselben Stand: Lieder, Hymnen, Durchsage-Texte, Saisontore und das aktuelle Spiel mit Kader und Sponsoren.</p>
+      <div class="field" style="margin-top:8px"><label class="lbl" for="syToken">GitHub-Schlüssel</label><input id="syToken" type="password" autocomplete="off" spellcheck="false" placeholder="ghp_…"></div>
+      <div class="row" style="margin-top:8px"><button class="small pri" id="syConnect">Verbinden</button><button class="small" id="syNow">Jetzt abgleichen</button><button class="small del" id="syOff">Trennen</button></div>
+      <p class="hint" id="syStat" style="margin-top:8px">Nicht verbunden.</p>
+      <details style="margin-top:8px"><summary>Schlüssel einmalig erstellen</summary>
+        <ol class="hint">
+          <li>Bei GitHub angemeldet <a href="https://github.com/settings/tokens/new?scopes=gist&amp;description=Platzsprecher" target="_blank" rel="noopener">diesen Link öffnen</a> (Classic Token, „gist“ ist schon angehakt).</li>
+          <li>Bei „Expiration“ <b>No expiration</b> wählen, sonst nichts anhaken, ganz unten <b>Generate token</b>.</li>
+          <li>Den Schlüssel (beginnt mit <span class="mono">ghp_</span>) kopieren, hier einfügen, <b>Verbinden</b>.</li>
+          <li>Auf jedem weiteren Gerät denselben Schlüssel einfügen und verbinden – es übernimmt dann den gespeicherten Stand.</li>
+          <li>Den Schlüssel wie ein Passwort behandeln. Er erlaubt nur Zugriff auf deine Gists (kleine private Notizen auf GitHub).</li>
+        </ol>
+      </details>
+    </div>
+
+    <div class="panel">
       <h2>Sicherung</h2>
       <p class="hint">Alles liegt nur auf diesem Gerät. Die Sicherung enthält Torlieder, Hymnen, Phasen, Durchsage-Vorlagen, Standard-Durchsagen, Saisontore und das aktuelle Spiel (Kader, Sponsoren, Spielstand).</p>
       <div class="row" style="margin-top:8px">
@@ -380,7 +404,7 @@ const uid = () => Math.random().toString(36).slice(2, 9);
 
 /* ---------- Speicher ---------- */
 const load = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
-const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} if (k === KEY || k === "ksv-platzsprecher-spiel") markChanged(); };
 const defaults = () => ({
   clientId: DEFAULT_CLIENT_ID, deviceId: "", deviceName: "", fadeSec: 3, vol: 80, goalMode: "rotation", goalIdx: 0,
   verein: "SG Röschitz/Sitzendorf/Roggendorf", vereinArt: "die", ort: "Röschitz", autoGoal: true, saison: {}, hymns: [],
@@ -405,6 +429,13 @@ if (!S.tplMig1) {
   if (!S.verein || S.verein === "KSV Röschitz") { S.verein = "SG Röschitz/Sitzendorf/Roggendorf"; S.vereinArt = "die"; }
   S.tplMig1 = true;
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {}
+}
+if (Array.isArray(S.phases)) {
+  let ch = false;
+  [["win", "Sieg"], ["draw", "Remis"], ["loss", "Niederlage"]].forEach(([id, label]) => {
+    if (!S.phases.some(p => p.id === id)) { S.phases.push({ id, label, group: "result", uri: "", startMs: 0, shuffle: false, xfade: true, vol: 0 }); ch = true; }
+  });
+  if (ch) { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} }
 }
 if (Array.isArray(S.phases) && !S.phases.some(p => p.id === "lineup")) {
   S.phases.splice(Math.min(1, S.phases.length), 0, { id: "lineup", label: "Aufstellung", uri: "", startMs: 0, shuffle: false, xfade: true, vol: 0 });
@@ -688,13 +719,15 @@ function renderLive() {
   });
   hg.hidden = !hy.length;
   const grid = $("phaseGrid"); grid.textContent = "";
+  const rg = $("resultGrid"); rg.textContent = "";
   S.phases.forEach(p => {
     const b = document.createElement("button");
-    b.className = "phase" + (activePhase === p.id ? " on" : "");
+    const res = p.group === "result";
+    b.className = "phase" + (res ? " res res-" + p.id : "") + (activePhase === p.id ? " on" : "");
     const t = document.createElement("b"); t.textContent = p.label;
     const i = document.createElement("span"); i.textContent = slotInfo(p);
     b.append(t, i); b.onclick = () => playSlot(p, { restoreVol: true });
-    grid.appendChild(b);
+    (res ? rg : grid).appendChild(b);
   });
   $("vol").value = S.vol; $("volVal").textContent = S.vol;
 }
@@ -836,11 +869,11 @@ $("btnCopy").onclick = async () => {
 $("btnDevices").onclick = loadDevices;
 $("btnAddHymn").onclick = () => { (S.hymns = S.hymns || []).push({ id: uid(), label: "Spielername", uri: "", startMs: 0, autoSec: 0 }); persist(); renderSetup(); };
 $("btnAddGoal").onclick = () => { S.goals.push({ id: uid(), label: "Torlied " + (S.goals.length + 1), uri: "", startMs: 0, autoSec: 0 }); persist(); renderSetup(); renderLive(); };
-function backupData() {
+function backupData(at) {
   const s = Object.assign({}, S); delete s.deviceId; delete s.deviceName;
-  return JSON.stringify({ app: "ksv-platzsprecher", v: 2, at: new Date().toISOString(), settings: s, spiel: G });
+  return JSON.stringify({ app: "ksv-platzsprecher", v: 2, at: new Date(at || Date.now()).toISOString(), settings: s, spiel: G });
 }
-function restore(txt) {
+function restore(txt, silent) {
   let j; try { j = JSON.parse(txt); } catch { j = null; }
   const s = j && (j.settings || j), g = j && j.spiel;
   if (!s || !Array.isArray(s.goals) || !Array.isArray(s.phases)) { toast("Das ist keine gültige Sicherung.", true); return; }
@@ -848,7 +881,7 @@ function restore(txt) {
   S = Object.assign(defaults(), s, keep.deviceId ? keep : {}); persist();
   if (g && typeof g === "object") { G = Object.assign(newGame(), g); G.clock = Object.assign(newClock(), g.clock || {}); saveG(); }
   renderSetup(); renderLive(); fillSetup(); renderSpiel();
-  toast("Sicherung geladen" + (g ? " – inkl. Spiel" : ""));
+  if (!silent) toast("Sicherung geladen" + (g ? " – inkl. Spiel" : ""));
 }
 $("btnFileOut").onclick = () => {
   const blob = new Blob([backupData()], { type: "application/json" });
@@ -868,6 +901,94 @@ $("btnExport").onclick = async () => {
   catch { $("backup").select(); toast("Text markiert – jetzt kopieren"); }
 };
 $("btnImport").onclick = () => restore($("backup").value);
+/* ---------- Online-Sync (GitHub Gist) ---------- */
+var SY = (function () { try { return JSON.parse(localStorage.getItem("ksv-platzsprecher-sync")) || {}; } catch (e) { return {}; } })();
+var syReady = false, syApplying = false, syTimer = null, syBusy = false;
+const SY_FILE = "platzsprecher.json", SY_DESC = "KSV Platzsprecher Sync";
+function sySave() { try { localStorage.setItem("ksv-platzsprecher-sync", JSON.stringify(SY)); } catch (e) {} }
+function markChanged() {
+  if (!SY || syApplying) return;
+  SY.localMod = Date.now(); SY.dirty = true; sySave();
+  if (SY.token && SY.gist && syReady) { clearTimeout(syTimer); syTimer = setTimeout(syPush, 2500); }
+}
+function syStatus(msg, err) {
+  const el = $("syStat"); if (!el) return;
+  el.style.color = err ? "var(--danger)" : "";
+  el.textContent = msg || (SY.token && SY.gist
+    ? "Verbunden" + (SY.lastSync ? " · zuletzt abgeglichen " + new Date(SY.lastSync).toLocaleTimeString("de-AT", { hour: "2-digit", minute: "2-digit" }) : "") + (SY.dirty ? " · Änderungen werden hochgeladen …" : " ✓")
+    : "Nicht verbunden.");
+}
+async function gh(method, path, body) {
+  const r = await fetch("https://api.github.com" + path, { method, cache: "no-store",
+    headers: Object.assign({ Authorization: "Bearer " + SY.token, Accept: "application/vnd.github+json" }, body ? { "Content-Type": "application/json" } : {}),
+    body: body ? JSON.stringify(body) : undefined });
+  if (!r.ok) {
+    const e = new Error(r.status === 401 ? "GitHub-Schlüssel ungültig oder abgelaufen." : (r.status === 403 || r.status === 404) ? "Kein Zugriff – hat der Schlüssel das Recht „gist“?" : "GitHub-Fehler " + r.status);
+    e.status = r.status; throw e;
+  }
+  return r.status === 204 ? null : r.json();
+}
+async function syConnect(token) {
+  SY = { token: token.trim() }; sySave(); syReady = false; syStatus("Verbinde …");
+  try {
+    let gist = null;
+    for (let page = 1; page <= 5 && !gist; page++) {
+      const l = await gh("GET", "/gists?per_page=100&page=" + page);
+      if (!l.length) break;
+      gist = l.find(g => g.description === SY_DESC && g.files && g.files[SY_FILE]);
+    }
+    if (gist) {
+      SY.gist = gist.id; sySave();
+      await syPull(true);
+      toast("Verbunden – Stand vom anderen Gerät übernommen");
+    } else {
+      const mod = Date.now();
+      const g = await gh("POST", "/gists", { description: SY_DESC, public: false, files: { [SY_FILE]: { content: backupData(mod) } } });
+      Object.assign(SY, { gist: g.id, localMod: mod, remoteAt: mod, lastSync: Date.now(), dirty: false }); sySave();
+      toast("Verbunden – Daten hochgeladen");
+    }
+    syReady = true; syStatus(); $("syToken").value = "";
+  } catch (e) { syStatus(e.message, true); toast(e.message, true); }
+}
+async function syPull(force) {
+  if (!SY.token || !SY.gist || syBusy) return;
+  syBusy = true;
+  try {
+    const g = await gh("GET", "/gists/" + SY.gist);
+    const f = g.files && g.files[SY_FILE]; if (!f) throw new Error("Sync-Datei fehlt – bitte neu verbinden.");
+    let txt = f.content; if (f.truncated && f.raw_url) txt = await (await fetch(f.raw_url, { cache: "no-store" })).text();
+    const j = JSON.parse(txt), at = Date.parse(j.at || 0) || 0;
+    if (force || at > (SY.localMod || 0)) {
+      syApplying = true; try { restore(txt, true); } finally { syApplying = false; }
+      if (!force && at !== (SY.remoteAt || 0)) toast("Neuer Stand vom anderen Gerät geladen");
+      SY.localMod = at; SY.dirty = false;
+    }
+    SY.remoteAt = at; SY.lastSync = Date.now(); sySave(); syStatus();
+  } catch (e) { syStatus(e.message, true); }
+  finally { syBusy = false; }
+}
+async function syPush() {
+  if (!SY.token || !SY.gist || !syReady) return;
+  if (syBusy) { clearTimeout(syTimer); syTimer = setTimeout(syPush, 1500); return; }
+  syBusy = true; const mod = SY.localMod || Date.now();
+  try {
+    await gh("PATCH", "/gists/" + SY.gist, { files: { [SY_FILE]: { content: backupData(mod) } } });
+    SY.remoteAt = mod; if (SY.localMod === mod) SY.dirty = false; SY.lastSync = Date.now(); sySave(); syStatus();
+  } catch (e) { syStatus(e.message, true); clearTimeout(syTimer); syTimer = setTimeout(syPush, 15000); }
+  finally { syBusy = false; }
+}
+async function syStart() {
+  if (!SY.token || !SY.gist) { syStatus(); return; }
+  await syPull(false);
+  syReady = true;
+  if (SY.dirty) syPush();
+}
+$("syConnect").onclick = () => { const t = $("syToken").value.trim(); if (!t) { toast("Bitte zuerst den GitHub-Schlüssel einfügen.", true); return; } syConnect(t); };
+$("syNow").onclick = async () => { if (!SY.gist) { toast("Noch nicht verbunden.", true); return; } if (SY.dirty) await syPush(); else await syPull(false); toast("Abgeglichen"); };
+$("syOff").onclick = e => { if (!arm("syoff", e.currentTarget, "Wirklich trennen?")) return; e.currentTarget.textContent = "Trennen"; e.currentTarget.classList.remove("armed"); SY = {}; sySave(); syReady = false; syStatus(); toast("Online-Sync getrennt – Daten bleiben auf diesem Gerät"); };
+document.addEventListener("visibilitychange", () => { if (!document.hidden && syReady) { if (SY.dirty) syPush(); else syPull(false); } });
+setInterval(() => { if (!document.hidden && syReady && !SY.dirty) syPull(false); }, 30000);
+
 function tab(which) {
   ["live", "spiel", "setup"].forEach(k => $(k).hidden = which !== k);
   $("tabLive").classList.toggle("on", which === "live"); $("tabSpiel").classList.toggle("on", which === "spiel"); $("tabSetup").classList.toggle("on", which === "setup");
@@ -1302,6 +1423,7 @@ fillSetup(); renderSpiel(); if (!G.gegner) $("gSetup").open = true;
   await handleRedirect();
   renderLive(); renderSetup();
   if (!T || !S.clientId) tab("setup"); else { poll(); }
+  syStart();
 })();
 })();
 </script>
