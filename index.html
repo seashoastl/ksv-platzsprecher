@@ -142,7 +142,7 @@ details.panel summary{font-family:var(--display);font-size:1.3rem;text-transform
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="brand">KSV Röschitz<small>Platzsprecher · v17</small></div>
+    <div class="brand">KSV Röschitz<small>Platzsprecher · v18</small></div>
     <span class="chip" id="status">nicht verbunden</span>
   </header>
 
@@ -251,7 +251,11 @@ details.panel summary{font-family:var(--display);font-size:1.3rem;text-transform
           <div class="field"><label class="lbl" for="g_trainerG">Trainer Gäste</label><input id="g_trainerG" data-g="trainerG" autocomplete="off"></div>
         </div>
         <div class="field"><label class="lbl" for="g_oefb">Link ÖFB-Spielseite</label><input id="g_oefb" data-g="oefb" inputmode="url" placeholder="https://www.oefb.at/bewerbe/Spiel/…" autocomplete="off"></div>
-        <div class="row"><button class="small pri" id="gOefb">Aufstellung vom ÖFB einfügen</button></div>
+        <div class="lbl" style="margin-top:4px">Aufstellung aus ÖFB-Screenshots</div>
+        <div class="row"><button class="small pri" id="gShotH">Screenshots Heim</button><button class="small pri" id="gShotG">Screenshots Gäste</button>
+          <input type="file" id="shotIn" accept="image/*" multiple hidden></div>
+        <p class="hint">Startelf und Ersatzbank einer Mannschaft gemeinsam auswählen (mehrere Bilder möglich).</p>
+        <div class="row"><button class="small" id="gOefb">Oder: Text von der ÖFB-Seite einfügen</button></div>
         <div class="field"><label class="lbl" for="g_kaderH">Kader Heim</label><textarea id="g_kaderH" data-g="kaderH" rows="8" placeholder="1 Huber&#10;4 Maier&#10;…"></textarea></div>
         <div class="field"><label class="lbl" for="g_kaderG">Kader Gäste</label><textarea id="g_kaderG" data-g="kaderG" rows="8" placeholder="1 Novak&#10;5 Berger&#10;…"></textarea></div>
         <p class="hint">Eine Zeile pro Spieler: Nummer Name. Die ersten 11 Zeilen sind die Startelf (1. Zeile = Tormann), der Rest die Ersatzbank.</p>
@@ -279,6 +283,14 @@ details.panel summary{font-family:var(--display);font-size:1.3rem;text-transform
       <textarea id="oefbText" rows="6" spellcheck="false" placeholder="Kopierten Text der ÖFB-Seite hier einfügen" aria-label="Kopierter Text der ÖFB-Seite"></textarea>
       <p class="hint" id="oefbPrev" style="margin-top:8px"></p>
       <div class="row" style="margin-top:8px"><button class="small" id="oefbPaste">Aus Zwischenablage</button><button class="small pri" id="oefbApply">Übernehmen</button></div>
+    </div>
+  </div>
+  <div id="ocrOv" class="ov" hidden role="dialog" aria-labelledby="ocrTitle">
+    <div class="ovbox">
+      <div class="ovh"><b id="ocrTitle">Aufstellung</b><button id="ocrClose">Schließen</button></div>
+      <p class="hint" id="ocrProg" aria-live="polite"></p>
+      <textarea id="ocrText" rows="14" spellcheck="false" aria-label="Erkannter Kader"></textarea>
+      <div class="row" style="margin-top:8px"><button class="small pri" id="ocrApply" disabled>Übernehmen</button></div>
     </div>
   </div>
   <div id="pick" class="ov" hidden role="dialog" aria-labelledby="pickTitle">
@@ -1365,10 +1377,10 @@ function parseOefb(text) {
     lines.push(l);
   }
   lines.forEach(raw => {
-    const l = raw.replace(/\s+/g, " ").trim();
+    const l = raw.replace(/\s+/g, " ").replace(/(\s+[>›»<«|®©)\]]+)+\s*$/, "").trim();
     const m = l.match(/^(ET|T|\d{1,2})\s+([A-Za-zÀ-žß][^\d]*?)$/);
     if (!m) return;
-    let name = m[2].trim(), bench = /\sErsatz\s*$/i.test(name) || m[1] === "ET";
+    let name = m[2].trim().replace(/([a-zäöüß])I(?![A-ZÄÖÜ])/g, "$1l"), bench = /\sErsatz\s*$/i.test(name) || m[1] === "ET";
     while (POS.test(name)) name = name.replace(POS, "").trim();
     if (!name || /^(Spieler|RNr|Position|Tore)/i.test(name)) return;
     const line = m[1] + " " + name;
@@ -1398,6 +1410,51 @@ $("oefbApply").onclick = () => {
   if (r.g.length) G.kaderG = r.g.join("\n");
   saveG(); fillSetup(); renderSpiel(); $("oefbOv").hidden = true;
   toast("Aufstellung übernommen – Heim " + r.h.length + ", Gäste " + r.g.length + " Spieler");
+};
+
+/* ---------- Aufstellung aus Screenshots (Texterkennung im Browser) ---------- */
+const TESS_JS = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+const TESS_LANG = "https://cdn.jsdelivr.net/npm/@tesseract.js-data/deu@1.0.0/4.0.0_best_int";
+let tessLoad = null, ocrSide = "h";
+function loadTess() {
+  if (window.Tesseract) return Promise.resolve();
+  if (!tessLoad) tessLoad = new Promise((ok, no) => { const s = document.createElement("script"); s.src = TESS_JS; s.onload = ok; s.onerror = () => { tessLoad = null; no(new Error("Texterkennung konnte nicht geladen werden – Internet prüfen.")); }; document.head.appendChild(s); });
+  return tessLoad;
+}
+function pickShots(side) { ocrSide = side; $("shotIn").value = ""; $("shotIn").click(); }
+$("gShotH").onclick = () => pickShots("h");
+$("gShotG").onclick = () => pickShots("g");
+$("shotIn").addEventListener("change", async e => {
+  const files = [...(e.target.files || [])]; if (!files.length) return;
+  const team = ocrSide === "h" ? "Heim" : "Gäste";
+  $("ocrTitle").textContent = "Aufstellung " + team; $("ocrText").value = ""; $("ocrApply").disabled = true;
+  $("ocrProg").textContent = "Texterkennung wird geladen …"; $("ocrOv").hidden = false;
+  let worker = null;
+  try {
+    await loadTess();
+    worker = await Tesseract.createWorker("deu", 1, { langPath: TESS_LANG, gzip: true,
+      logger: m => { if (m.status === "recognizing text") $("ocrProg").textContent = "Erkenne Text … " + Math.round(m.progress * 100) + " %"; } });
+    let all = "";
+    for (let i = 0; i < files.length; i++) {
+      $("ocrProg").textContent = "Bild " + (i + 1) + " von " + files.length + " …";
+      const { data } = await worker.recognize(files[i]);
+      all += "\n" + data.text;
+    }
+    const r = parseOefb(all), lines = r.h.length ? r.h : r.g, c = r.counts;
+    $("ocrText").value = lines.join("\n");
+    $("ocrProg").textContent = lines.length
+      ? "Erkannt: " + c[0] + " Startelf + " + c[1] + " Ersatz. Bitte kurz prüfen und bei Bedarf korrigieren."
+      : "Keine Spieler erkannt. Bitte einen Screenshot der ÖFB-Aufstellung (Nummer + Name) verwenden.";
+    $("ocrApply").disabled = !lines.length;
+  } catch (err) { $("ocrProg").textContent = err.message || "Texterkennung fehlgeschlagen."; }
+  finally { if (worker) worker.terminate(); }
+});
+$("ocrClose").onclick = () => $("ocrOv").hidden = true;
+$("ocrApply").onclick = () => {
+  const txt = $("ocrText").value.trim(); if (!txt) return;
+  if (ocrSide === "h") G.kaderH = txt; else G.kaderG = txt;
+  saveG(); fillSetup(); renderSpiel(); $("ocrOv").hidden = true;
+  toast("Kader " + (ocrSide === "h" ? "Heim" : "Gäste") + " übernommen – " + txt.split("\n").length + " Spieler");
 };
 
 /* Darstellung */
