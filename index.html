@@ -142,7 +142,7 @@ details.panel summary{font-family:var(--display);font-size:1.3rem;text-transform
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="brand">KSV Röschitz<small>Platzsprecher · v16</small></div>
+    <div class="brand">KSV Röschitz<small>Platzsprecher · v17</small></div>
     <span class="chip" id="status">nicht verbunden</span>
   </header>
 
@@ -250,6 +250,8 @@ details.panel summary{font-family:var(--display);font-size:1.3rem;text-transform
           <div class="field"><label class="lbl" for="g_trainerH">Trainer Heim</label><input id="g_trainerH" data-g="trainerH" autocomplete="off"></div>
           <div class="field"><label class="lbl" for="g_trainerG">Trainer Gäste</label><input id="g_trainerG" data-g="trainerG" autocomplete="off"></div>
         </div>
+        <div class="field"><label class="lbl" for="g_oefb">Link ÖFB-Spielseite</label><input id="g_oefb" data-g="oefb" inputmode="url" placeholder="https://www.oefb.at/bewerbe/Spiel/…" autocomplete="off"></div>
+        <div class="row"><button class="small pri" id="gOefb">Aufstellung vom ÖFB einfügen</button></div>
         <div class="field"><label class="lbl" for="g_kaderH">Kader Heim</label><textarea id="g_kaderH" data-g="kaderH" rows="8" placeholder="1 Huber&#10;4 Maier&#10;…"></textarea></div>
         <div class="field"><label class="lbl" for="g_kaderG">Kader Gäste</label><textarea id="g_kaderG" data-g="kaderG" rows="8" placeholder="1 Novak&#10;5 Berger&#10;…"></textarea></div>
         <p class="hint">Eine Zeile pro Spieler: Nummer Name. Die ersten 11 Zeilen sind die Startelf (1. Zeile = Tormann), der Rest die Ersatzbank.</p>
@@ -264,6 +266,19 @@ details.panel summary{font-family:var(--display);font-size:1.3rem;text-transform
     <div class="ovbox">
       <div class="ovh"><b id="dsTitle">Durchsage</b><button class="pri" id="dsClose">Fertig</button></div>
       <div id="dsText" class="dstext"></div>
+    </div>
+  </div>
+  <div id="oefbOv" class="ov" hidden role="dialog" aria-labelledby="oefbTitle">
+    <div class="ovbox">
+      <div class="ovh"><b id="oefbTitle">Aufstellung vom ÖFB</b><button id="oefbClose">Schließen</button></div>
+      <ol class="hint" style="margin-top:0">
+        <li><button class="small" id="oefbOpen">ÖFB-Spielseite öffnen</button></li>
+        <li>Dort lange auf einen Text tippen → <b>Alle auswählen</b> → <b>Kopieren</b>.</li>
+        <li>Zurück hier: <b>Aus Zwischenablage</b> tippen (oder ins Feld einfügen) → <b>Übernehmen</b>.</li>
+      </ol>
+      <textarea id="oefbText" rows="6" spellcheck="false" placeholder="Kopierten Text der ÖFB-Seite hier einfügen" aria-label="Kopierter Text der ÖFB-Seite"></textarea>
+      <p class="hint" id="oefbPrev" style="margin-top:8px"></p>
+      <div class="row" style="margin-top:8px"><button class="small" id="oefbPaste">Aus Zwischenablage</button><button class="small pri" id="oefbApply">Übernehmen</button></div>
     </div>
   </div>
   <div id="pick" class="ov" hidden role="dialog" aria-labelledby="pickTitle">
@@ -1003,7 +1018,7 @@ document.addEventListener("click", wake, { once: true });
 /* ---------- Spieltag ---------- */
 const GKEY = "ksv-platzsprecher-spiel";
 const newClock = () => ({ started: false, run: false, since: 0, acc: 0, hz: 1, end: false });
-const newGame = keep => ({ gegnerArt: "der", reserve: "", reserveTore: "", ehren: "", naechstes: "", gegner: "", bewerb: "", schiri: "", zuschauer: "", patron: "", ball: "", wein: "",
+const newGame = keep => ({ oefb: "", gegnerArt: "der", reserve: "", reserveTore: "", ehren: "", naechstes: "", gegner: "", bewerb: "", schiri: "", zuschauer: "", patron: "", ball: "", wein: "",
   trainerH: keep ? keep.trainerH : "", trainerG: "", kaderH: keep ? keep.kaderH : "", kaderG: "", ev: [], clock: newClock() });
 let G = Object.assign(newGame(), load(GKEY, {}));
 G.clock = Object.assign(newClock(), G.clock || {});
@@ -1334,6 +1349,56 @@ $("gTick").addEventListener("click", ev => {
     G.ev = G.ev.filter(x => x !== e); saveG(); renderSpiel();
   }
 });
+
+/* ---------- ÖFB-Aufstellung einlesen ---------- */
+// Liest kopierten Text der ÖFB-Spielseite. Startelf: Zeilen ohne „Ersatz“, neue Mannschaft beginnt beim nächsten „T“.
+// Ersatzbank: Zeilen mit „Ersatz“ bzw. „ET“, neue Mannschaft beginnt beim nächsten „ET“. Erste Mannschaft = Heim.
+function parseOefb(text) {
+  const POS = /\s+(-|–|Ersatz|Tormann|Torhüter|Verteidiger|Abwehr|Mittelfeld|Sturm|Stürmer)\s*$/i;
+  const st = [[], []], bn = [[], []]; let ti = -1, bi = -1;
+  // Zellen, die beim Kopieren am Handy in eigenen Zeilen landen, wieder zusammenführen
+  const src = String(text || "").replace(/\t/g, " ").split(/\r?\n/).map(l => l.replace(/\s+/g, " ").trim()).filter(Boolean), lines = [];
+  for (let i = 0; i < src.length; i++) {
+    let l = src[i];
+    if (/^(ET|T|\d{1,2})$/.test(l) && src[i + 1] && /^[A-Za-zÀ-žß]/.test(src[i + 1])) { l += " " + src[++i]; if (src[i + 1] && /^(-|–|Ersatz)$/i.test(src[i + 1])) l += " " + src[++i]; }
+    else if (/^(ET|T|\d{1,2})\s/.test(l) && src[i + 1] && /^(-|–|Ersatz)$/i.test(src[i + 1])) l += " " + src[++i];
+    lines.push(l);
+  }
+  lines.forEach(raw => {
+    const l = raw.replace(/\s+/g, " ").trim();
+    const m = l.match(/^(ET|T|\d{1,2})\s+([A-Za-zÀ-žß][^\d]*?)$/);
+    if (!m) return;
+    let name = m[2].trim(), bench = /\sErsatz\s*$/i.test(name) || m[1] === "ET";
+    while (POS.test(name)) name = name.replace(POS, "").trim();
+    if (!name || /^(Spieler|RNr|Position|Tore)/i.test(name)) return;
+    const line = m[1] + " " + name;
+    if (bench) { if (m[1] === "ET" || bi < 0) bi++; if (bi > 1) return; bn[bi].push(line); }
+    else { if (m[1] === "T" || ti < 0) ti++; if (ti > 1) return; st[ti].push(line); }
+  });
+  return { h: st[0].concat(bn[0]), g: st[1].concat(bn[1]), counts: [st[0].length, bn[0].length, st[1].length, bn[1].length] };
+}
+$("gOefb").onclick = () => { $("oefbText").value = ""; $("oefbPrev").textContent = ""; $("oefbOv").hidden = false; };
+$("oefbClose").onclick = () => $("oefbOv").hidden = true;
+$("oefbOpen").onclick = () => { const u = (G.oefb || "").trim(); if (!/^https:\/\/(www\.)?oefb\.at\//.test(u)) { toast("Zuerst den Link zur ÖFB-Spielseite bei „Spieldaten“ eintragen.", true); return; } window.open(u, "_blank", "noopener"); };
+$("oefbPaste").onclick = async () => {
+  try { $("oefbText").value = await navigator.clipboard.readText(); oefbPreview(); }
+  catch (e) { toast("Kein Zugriff auf die Zwischenablage – bitte lange ins Feld tippen und „Einfügen“ wählen.", true); }
+};
+$("oefbText").addEventListener("input", oefbPreview);
+function oefbPreview() {
+  const r = parseOefb($("oefbText").value), c = r.counts;
+  $("oefbPrev").textContent = (r.h.length || r.g.length)
+    ? "Erkannt – Heim: " + c[0] + " Startelf + " + c[1] + " Ersatz · Gäste: " + c[2] + " Startelf + " + c[3] + " Ersatz"
+    : "Noch keine Spieler erkannt.";
+}
+$("oefbApply").onclick = () => {
+  const r = parseOefb($("oefbText").value);
+  if (!r.h.length && !r.g.length) { toast("Keine Spieler erkannt. Bitte den Text der ÖFB-Seite mit den Aufstellungen einfügen.", true); return; }
+  if (r.h.length) G.kaderH = r.h.join("\n");
+  if (r.g.length) G.kaderG = r.g.join("\n");
+  saveG(); fillSetup(); renderSpiel(); $("oefbOv").hidden = true;
+  toast("Aufstellung übernommen – Heim " + r.h.length + ", Gäste " + r.g.length + " Spieler");
+};
 
 /* Darstellung */
 function fillSetup() { document.querySelectorAll("[data-g]").forEach(el => { if (document.activeElement !== el) el.value = G[el.dataset.g] || ""; }); }
